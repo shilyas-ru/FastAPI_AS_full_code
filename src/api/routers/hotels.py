@@ -1,9 +1,9 @@
 from fastapi import Query, Body, Path, APIRouter
 from typing import Annotated
-from schemas.hotels import HotelPath, HotelCaptionRec, HotelCaptionOpt
+from src.schemas.hotels import HotelPath, HotelCaptionRec, HotelCaptionOpt
 # import schemas.hotels as hotels_schms
 
-from dependencies import PaginationPagesDep, PaginationAllDep
+from src.api.dependencies.dependencies import PaginationPagesDep, PaginationAllDep
 
 """
 Данные передаются через URL, через Query-параметры (метод Query)
@@ -238,22 +238,6 @@ def find_hotels_get(pagination: PaginationPagesDep,
                tags=["Отели"],
                summary="Удаление выбранной записи",
                )
-# Схема hotels_schms.HotelPath описана так:
-# class HotelPath(BaseModel):
-#     hotel_id: int = Field(description="Идентификатор отеля",
-#                           ge=1,
-#                           )
-# Соответственно, вместо параметра:
-# hotel_path: Annotated[hotels_schms.HotelPath, Path()],
-# нельзя писать hotel_id: Annotated[hotels_schms.HotelPath, Path()],
-# надеясь получить конструкцию вида: hotel_id.hotel_id.
-# FastAPI это будет считать ошибкой и выдаст сообщение:
-# AssertionError: Path params must be of one of the supported types.
-# То есть, можно сделать так:
-#   def hotel_get(hotel_path: int,
-#   def hotel_get(hotel_path: Annotated[int, Path(description="Идентификатор отеля",
-#                                                 ge=1,)],
-#   def hotel_get(hotel_path: Annotated[hotels_schms.HotelPath, Path()],
 def delete_hotel_del(hotel_path: Annotated[HotelPath, Path()]):
     """
     ## Функция удаляет выбранную запись.
@@ -353,10 +337,6 @@ def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
               tags=["Отели"],
               summary="Обновление каких-либо данных выборочно или всех данных сразу",
               )
-# Параметр examples работает только для типа Body().
-# Коммент в чате: для Path и Query нельзя поставить examples. Они им не нужны
-# UPD я проверил, ни каким образом они не ставятся
-# https://t.me/c/2303072202/82/2878
 # Тут параметр examples переопределяет то, что в схеме
 def change_hotel_patch(hotel_path: Annotated[HotelPath,
                                              Path(examples=[{

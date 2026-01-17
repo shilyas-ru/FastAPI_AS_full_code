@@ -1,13 +1,29 @@
 import uvicorn
 from fastapi import FastAPI
 
-# Следующая строка использует файл Routers_FastAPI/hotels.py
-from Routers_FastAPI.hotels import router as router_hotels
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+# Path(__file__) - позволяет определить путь текущего файла
+# str(Path(__file__).parent - взять его родителя (папка src)
+# str(Path(__file__).parent.parent - взять родителя папки src (корневая папка проекта)
+# Добавление папки проекта в пути - делаем ДО всех импортов из проекта
+
+# Следующая строка использует файл src/api/routers/hotels.py
+from src.api.routers.hotels import router as router_hotels
+# from src.config import settings
+#
+# print(f"{settings.DB_URL = }")
 
 """
-## Дополнение к заданию №2: Пагинация для отелей
+## Задание №3: Миграция для номеров
 
-Сама пагинация делается через зависимости - Dependencies
+Необходимо создать миграцию (в Alembic они называются ревизии/revisions) 
+через терминал ровно так же, как мы делали это в уроке.
+Внутри миграции должны появиться изменения: добавление новой таблицы rooms.
+После создания миграцию необходимо прогнать (запустить/применить), чтобы 
+в базе данных появилась таблица rooms
 """
 
 tags_metadata = {
@@ -30,6 +46,13 @@ tags_metadata = {
                    '<li><a href="https://habr.com/ru/companies/amvera/articles/851642/">'
                    "Pydantic 2: Полное руководство для Python-разработчиков - "
                    "от основ до продвинутых техник</a>.</li>"
+                   '<li><a href="https://habr.com/ru/articles/866536/">'
+                   "Делаем управление конфигами удобным при помощи pydantic_settings</a>.</li>"
+                   '<li><a href="https://habr.com/ru/companies/amvera/articles/855740/">'
+                   "Асинхронный SQLAlchemy 2: улучшение кода, методы обновления и удаления данных</a>.</li>"
+                   '<li><a href="https://stackoverflow.com/questions/73248731/alembic-store-extra-information-in-alembic-version-table">'
+                   "Alembic — хранит дополнительную информацию в таблице `alembic_version` "
+                   "(Alembic — store extra information in `alembic_version` table)</a>.</li>"
                    "</ul>"
 }
 
@@ -53,7 +76,6 @@ openapi_tags = [
 app = FastAPI(**tags_metadata,
               openapi_tags=openapi_tags)
 app.include_router(router_hotels)
-
 
 if __name__ == "__main__":
     uvicorn.run("main:app",

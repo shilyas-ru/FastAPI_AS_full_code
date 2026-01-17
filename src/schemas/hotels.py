@@ -60,10 +60,6 @@ def hotel_patch(hotel_path: Annotated[HotelPath, Path()],
 """
 
 
-# Параметр examples работает только для типа Body().
-# Коммент в чате: для Path и Query нельзя поставить examples. Они им не нужны
-# UPD я проверил, ни каким образом они не ставятся
-# https://t.me/c/2303072202/82/2878
 class HotelPath(BaseModel):
     hotel_id: int = Field(description="Идентификатор отеля",
                           ge=1,
