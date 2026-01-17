@@ -1,7 +1,9 @@
 <img src="images/smailik-chitaet-na-prozrachnom-fone-27.jpg" height="110" align="left" hspace="40">
 
 При изучении FastAPI разрабатывается приложение для отелей.
-<br><br><br><br>
+<br><br><br>
+Выполняемое задание (формулировка задания и его решение) описывается в файле "[task.md](task.md)".
+
 
 ## Уведомления
 1. Код учебный, то есть:
