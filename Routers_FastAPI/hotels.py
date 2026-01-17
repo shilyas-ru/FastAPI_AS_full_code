@@ -1,5 +1,9 @@
 from fastapi import Query, Body, Path, APIRouter
 from typing import Annotated
+from schemas.hotels import HotelPath, HotelCaptionRec, HotelCaptionOpt
+# import schemas.hotels as hotels_schms
+
+from dependencies import PaginationPagesDep, PaginationAllDep
 
 """
 Данные передаются через URL, через Query-параметры (метод Query)
@@ -11,7 +15,7 @@ from typing import Annotated
 
 Рабочие ссылки (список методов, параметры в подробном перечне):
 get("/hotels") - Вывод списка всех отелей с разбивкой по страницам или всего списка полностью
-get("/hotels/{hotel_id}") - Вывод информации об одном отеле
+get("/hotels/find") - Поиск отелей по заданным параметрам и вывод итогового списка с разбивкой по страницам
 delete("/hotels/{hotel_id}") - Удаление выбранной записи
 post("/hotels") - Добавить данные
 put("/hotels/{hotel_id}") - Обновление ВСЕХ данные одновременно
@@ -22,27 +26,26 @@ patch("/hotels/{hotel_id}") - Обновление каких-либо данн�
 Реализованы методы API:
 get
 /hotels - Вывод списка всех отелей с разбивкой по страницам или всего списка полностью
-       Функция: show_hotels
+       Функция: show_hotels_get
 get
-/hotels/{hotel_id} - Вывод информации об одном отеле
-       Функция: get_hotel
-       Параметры (передаются в URL):
+/hotels/find - Вывод информации об одном отеле
+       Функция: find_hotels_get
+       Параметры (передаются через Query-параметры методом Query):
        - Идентификатор отеля для вывода
          - hotel_id: int | None
-       Параметры (передаются через Query-параметры методом Query):
        - Наименование title отеля для вывода
          - hotel_title: str | None
 
 delete
 /hotels/{hotel_id} - Удаление выбранной записи
-       Функция: delete_hotel
+       Функция: delete_hotel_del
        Параметры (передаются в URL):
        - Идентификатор удаляемого отеля
          - hotel_id: int
 
 post
 /hotels - Добавить данные
-       Функция: create_hotel
+       Функция: create_hotel_post
        Параметры передаются через ТЕЛО запроса (метод Body):
          - Данные, которые надо добавить:
            - hotel_title: str
@@ -50,7 +53,7 @@ post
                  
 put
 /hotels/{hotel_id} - Обновление ВСЕХ данные одновременно
-       Функция: hotel_id_put
+       Функция: change_hotel_put
        Параметры (передаются в URL):
          - Индекс, для которого обновляются данные передаётся в адресной строке:
            - hotel_id: int
@@ -62,7 +65,7 @@ put
 patch
 /hotel/{hotel_id} - Обновление каких-либо данных выборочно или всех данных сразу
        Данные передаются через ТЕЛО запроса (метод Body)
-       Функция: hotel_id_patch
+       Функция: change_hotel_patch
        Параметры:
          - Индекс, для которого обновляются данные:
            - hotel_id: int
@@ -71,11 +74,6 @@ patch
            - hotel_name: str
 """
 
-
-"""
-URL-адреса метаданных и документации
-https://fastapi.tiangolo.com/ru/tutorial/metadata/
-"""
 
 router = APIRouter(prefix="/hotels", tags=["Отели"])
 
@@ -89,36 +87,30 @@ hotels = [
 ]
 
 
-@router.get("/test",
-            summary='Тестовая ручка для проверки типа данных "str | None" - '
-                    'для обязательного параметра и параметра по умолчанию',
-            tags=["Отели"])
-def hotel_test_get(query_required: Annotated[str | None,
-                                             Query(description='Параметр обязательный, '
-                                                               'тип данных "str | None"')],
-                   query_optional: Annotated[str | None,
-                                             Query(description='Факультативный параметр, '
-                                                               'тип данных "str | None"')] = None):
-    return f"{query_required = }, {query_optional = }"
-
-
-@router.post("/test/{hotel_id}",
-             summary="Тестовая ручка для проверки методов Path(), "
-                     "Query(), Body() с параметрами по умолчанию",
-             tags=["Отели"])
-def hotel_test_post(hotel_path: Annotated[int | None,
-                                          Path(description="Идентификатор отеля")] = 5,
-                    hotel_title: Annotated[str | None,
-                                           Query(description="Данные hotel title")] = "title",
-                    hotel_name: Annotated[str | None,
-                                          Query(description="Данные hotel name")] = "name",
-                    hotel_body_str: Annotated[str | None,
-                                              Body(description="Данные hotel body str")] = "str",
-                    hotel_body_int: Annotated[int | None,
-                                              Body(description="Данные hotel body int")] = 3
-                    ):
-    return f"{hotel_path = }, {hotel_title = }, {hotel_name = }, " \
-           f"{hotel_body_str = }, {hotel_body_int = }"
+# @router.post("/test/{hotel_id}/{room_id}-{room_number}",
+#              summary="Тестовая ручка для проверки методов Path(), "
+#                      "Query(), Body() со схемами Pydantic",
+#              tags=["Отели"])
+# def hotel_test_post(room_path: Annotated[hotels_schms.RoomPathTest, Path()],
+#                     hotel_data_query: Annotated[hotels_schms.HotelQueryTest, Query()],
+#                     hotel_data_body: Annotated[hotels_schms.HotelBodyTest, Body()],
+#                     # В параметре examples порядок полей при выводе такой, как указан в коде.
+#                     # Переопределяет параметр examples, если он задан в описании схемы.
+#                     # Если указать несколько значений, то пока они игнорируются, кроме первого:
+#                     # в документации указывается, что полный вывод всех данных пока не
+#                     # возможен по внешним причинам.
+#                     # hotel_data_body: Annotated[hotels_schms.HotelBodyTest,
+#                     #                            Body(examples=[{"hotel_body_str": "Fwewwoo",
+#                     #                                            "hotel_body_int": 12,
+#                     #                                            },
+#                     #                                           ]
+#                     #                                 )
+#                     #                            ],
+#                     ):
+#     return (f"{room_path.hotel_id = }, {room_path.room_id = }",
+#             f"{room_path = }",
+#             f"{hotel_data_query = }",
+#             f"{hotel_data_body = }")
 
 
 @router.get("",
@@ -128,24 +120,25 @@ def hotel_test_post(hotel_path: Annotated[int | None,
             )
 # Если описать параметры, как в комменте ниже,
 # то в API не будет пояснения, какой параметр что значит
-# def show_hotels(page: int = 0, per_page: int = 10):
+# def show_hotels_get(page: int = 0, per_page: int = 10):
 # alias="item-query" - позволяет в адресной строке можно указать варианты:
 # - http://127.0.0.1:8000/items/?per_page=    это определяется параметром per_page
 # - http://127.0.0.1:8000/items/?per-page=    это определяется alias="per-page"
-def show_hotels(page: Annotated[int,
-                                Query(ge=1,
-                                      description="Номер страницы для вывода",
-                                      )] = 1,
-                per_page: Annotated[int,
-                                    Query(ge=1,
-                                          alias="per-page",
-                                          description="Количество элементов на странице",
-                                          )] = 3,
-                all_hotels: Annotated[bool,
-                                      Query(alias="all-hotels",
-                                            description="Отображать весь список отелей полностью",
-                                            )] = False,
-                ):
+def show_hotels_get(pagination: PaginationAllDep,
+                    # page: Annotated[int,
+                    #                 Query(ge=1,
+                    #                       description="Номер страницы для вывода",
+                    #                       )] = 1,
+                    # per_page: Annotated[int,
+                    #                     Query(ge=1,
+                    #                           alias="per-page",
+                    #                           description="Количество элементов на странице",
+                    #                           )] = 3,
+                    # all_hotels: Annotated[bool,
+                    #                       Query(alias="all-hotels",
+                    #                             description="Отображать весь список отелей полностью",
+                    #                             )] = False,
+                    ):
     """
     ## Функция выводит список всех отелей с разбивкой по страницам или весь список полностью.
 
@@ -163,31 +156,40 @@ def show_hotels(page: Annotated[int,
     - ***info***, это информация, какая страница выводится и сколько элементов на странице;
     - ***list[dict{hotel_item: HotelItem}]***, это список выводимых отелей.
     """
-    if all_hotels:
+    if pagination.all_hotels:
         return "Полный список отелей.", hotels
 
-    skip = (page-1) * per_page
+    skip = (pagination.page-1) * pagination.per_page
     if len(hotels) < skip+1:
-        return f"страница {page}, отображается {per_page} элементов на странице./nДанные отсутствуют."
-    return f"страница {page}, отображается {per_page} элементов на странице.", hotels[skip: skip+per_page]
+        return (f"страница {pagination.page}, отображается {pagination.per_page} " 
+                "элементов на странице.",
+                f"Данные отсутствуют.")
+    return f"страница {pagination.page}, отображается {pagination.per_page} " \
+           f"элементов на странице.", hotels[skip: skip + pagination.per_page]
 
 
-@router.get("/{hotel_id}",
+@router.get("/find",
             tags=["Отели"],
-            summary="Вывод информации об одном отеле",
+            summary="Поиск отелей по заданным параметрам и "
+                    "вывод итогового списка с разбивкой по страницам",
             )
-# def get_hotel(hotel_id: int,   # можно не указывать для path-параметра item_id Path(...)
-def get_hotel(hotel_id: int = Path(description="Идентификатор отеля"),
-              hotel_title: str | None = Query(None, description="Название (title) отеля"),
-              ):
+def find_hotels_get(pagination: PaginationPagesDep,
+                    hotel_id: Annotated[int | None, Query(description="Идентификатор отеля",
+                                                          ge=1
+                                                          )] = None,
+                    hotel_title: Annotated[str | None, Query(min_length=3,
+                                                             description="Название (title) отеля"
+                                                             )] = None,
+                    ):
     """
-    ## Функция выводит информацию о выбранном отеле.
-
-    Параметры (передаются в URL):
-    - ***:param** hotel_id:* Идентификатор отеля (обязательно).
+    ## Функция ищет отели по заданным параметрам и выводит информацию о найденных отелях с разбивкой по страницам.
 
     Параметры (передаются методом Query):
+    - ***:param** hotel_id:* Идентификатор отеля (может отсутствовать).
     - ***:param** hotel_title:* title отеля (может отсутствовать).
+
+    Поиск по параметру hotel_title - регистронезависимый, выбираются записи,
+    в которых значение в БД начинается с заданной в hotel_title строки.
 
     Если переданы оба параметра, то выбираться будет отель,
     соответствующий обоим параметрам одновременно.
@@ -212,17 +214,47 @@ def get_hotel(hotel_id: int = Path(description="Идентификатор от�
         # и цикл будет переходить к следующей итерации, игнорируя проверку со вторым параметром.
         if hotel_id and hotel["id"] != hotel_id:
             continue
-        if hotel_title and hotel["title"] != hotel_title:
+        # if hotel_title and hotel["title"] != hotel_title:
+        # if hotel_title and not hotel["title"].startswith(hotel_title):
+        if hotel_title and not hotel["title"].title().startswith(hotel_title.title()):
             continue
         found_hotel.append(hotel)
-    return found_hotel
+
+    # Простой вывод
+    # if pagination.page and pagination.per_page:
+    #     return found_hotel[pagination.per_page * (pagination.page - 1):][:pagination.per_page]
+    # return found_hotel
+
+    skip = (pagination.page-1) * pagination.per_page
+    if len(found_hotel) < skip+1:
+        return (f"страница {pagination.page}, отображается {pagination.per_page} " 
+                "элементов на странице.",
+                f"Данные отсутствуют.")
+    return f"страница {pagination.page}, отображается {pagination.per_page} " \
+           f"элементов на странице.", found_hotel[skip: skip + pagination.per_page]
 
 
 @router.delete("/{hotel_id}",
                tags=["Отели"],
                summary="Удаление выбранной записи",
                )
-def delete_hotel(hotel_id: int = Path(description="Идентификатор отеля")):
+# Схема hotels_schms.HotelPath описана так:
+# class HotelPath(BaseModel):
+#     hotel_id: int = Field(description="Идентификатор отеля",
+#                           ge=1,
+#                           )
+# Соответственно, вместо параметра:
+# hotel_path: Annotated[hotels_schms.HotelPath, Path()],
+# нельзя писать hotel_id: Annotated[hotels_schms.HotelPath, Path()],
+# надеясь получить конструкцию вида: hotel_id.hotel_id.
+# FastAPI это будет считать ошибкой и выдаст сообщение:
+# AssertionError: Path params must be of one of the supported types.
+# То есть, можно сделать так:
+#   def hotel_get(hotel_path: int,
+#   def hotel_get(hotel_path: Annotated[int, Path(description="Идентификатор отеля",
+#                                                 ge=1,)],
+#   def hotel_get(hotel_path: Annotated[hotels_schms.HotelPath, Path()],
+def delete_hotel_del(hotel_path: Annotated[HotelPath, Path()]):
     """
     ## Функция удаляет выбранную запись.
 
@@ -238,15 +270,15 @@ def delete_hotel(hotel_id: int = Path(description="Идентификатор о
     global hotels
 
     # Если работать с БД, то удаление данных об отеле надо оформить блоком TRY.
-    hotels = [hotel for hotel in hotels if hotel["id"] != hotel_id]
+    hotels = [hotel for hotel in hotels if hotel["id"] != hotel_path.hotel_id]
     return {"status": "OK"}
 
 
 @router.post("",
-             tags=["Отели"])
-def create_hotel(hotel_title: str = Body(),
-                 hotel_name: str = Body(),
-                 ):
+             tags=["Отели"],
+             summary="Создание записи с новым отелем",
+             )
+def create_hotel_post(hotel_caption: Annotated[HotelCaptionRec, Body()]):
     """
     ## Функция создаёт запись.
 
@@ -265,8 +297,8 @@ def create_hotel(hotel_title: str = Body(),
     status = "OK"
     # Если работать с БД, то добавление отеля надо оформить блоком TRY.
     hotels.append({"id": hotels[-1]["id"] + 1,
-                   "title": hotel_title,
-                   "name": hotel_name
+                   "title": hotel_caption.hotel_title,
+                   "name": hotel_caption.hotel_name
                    })
     return {"status": status}
 
@@ -275,10 +307,9 @@ def create_hotel(hotel_title: str = Body(),
             tags=["Отели"],
             summary="Обновление ВСЕХ данные одновременно",
             )
-def hotel_id_put(hotel_id: int = Path(description="Идентификатор отеля"),
-                 hotel_title: str = Body(),
-                 hotel_name: str = Body()
-                 ):
+def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
+                     hotel_caption: Annotated[HotelCaptionRec, Body()]
+                     ):
     """
     ## Функция изменяет (обновляет) ВСЕ данные одновременно
 
@@ -299,28 +330,50 @@ def hotel_id_put(hotel_id: int = Path(description="Идентификатор о
     """
     global hotels
 
-    status = f"With {hotel_id:} nothing was found"
+    status = f"With {hotel_path.hotel_id:} nothing was found"
     err_type = 1
 
     # Если работать с БД, то изменение данных об отеле надо оформить блоком TRY.
     for item in hotels:
-        if item["id"] == hotel_id:
-            item["title"] = hotel_title
-            item["name"] = hotel_name
+        if item["id"] == hotel_path.hotel_id:
+            item["title"] = hotel_caption.hotel_title
+            item["name"] = hotel_caption.hotel_name
             status = "OK"
             err_type = 0
             break
     return {"status": status, "err_type": err_type}
 
 
+# def hotel_id_patch(hotel_id: int = Path(description="Идентификатор отеля"),
+#                    hotel_title: str | None = Body(default=None),
+#                    hotel_name: str | None = Body(default=None)
+#                    ):
+
 @router.patch("/{hotel_id}",
               tags=["Отели"],
               summary="Обновление каких-либо данных выборочно или всех данных сразу",
               )
-def hotel_id_patch(hotel_id: int = Path(description="Идентификатор отеля"),
-                   hotel_title: str | None = Body(default=None),
-                   hotel_name: str | None = Body(default=None)
-                   ):
+# Параметр examples работает только для типа Body().
+# Коммент в чате: для Path и Query нельзя поставить examples. Они им не нужны
+# UPD я проверил, ни каким образом они не ставятся
+# https://t.me/c/2303072202/82/2878
+# Тут параметр examples переопределяет то, что в схеме
+def change_hotel_patch(hotel_path: Annotated[HotelPath,
+                                             Path(examples=[{
+                                                             "hotel_id": 1
+                                                             }
+                                                            ]
+                                                  )
+                                             ],
+                       hotel_caption: Annotated[HotelCaptionOpt,
+                                                Body(examples=[{
+                                                                "hotel_title": "title отеля",
+                                                                "hotel_name": "name отеля",
+                                                                },
+                                                               ]
+                                                     )
+                                                ],
+                       ):
     """
     ## Функция обновляет каких-либо данные выборочно или все данных сразу
 
@@ -343,16 +396,16 @@ def hotel_id_patch(hotel_id: int = Path(description="Идентификатор 
 
     global hotels
 
-    status = f"With {hotel_id:} nothing was found"
+    status = f"With {hotel_path.hotel_id:} nothing was found"
     err_type = 1
 
     # Если работать с БД, то изменение данных об отеле надо оформить блоком TRY.
     for item in hotels:
-        if item["id"] == hotel_id:
-            if hotel_title:
-                item["title"] = hotel_title
-            if hotel_name:
-                item["name"] = hotel_name
+        if item["id"] == hotel_path.hotel_id:
+            if hotel_caption.hotel_title:
+                item["title"] = hotel_caption.hotel_title
+            if hotel_caption.hotel_name:
+                item["name"] = hotel_caption.hotel_name
             status = "OK"
             err_type = 0
             break

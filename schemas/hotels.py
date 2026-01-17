@@ -4,76 +4,26 @@ from pydantic import BaseModel, Field
 # Pydantic 2: Полное руководство для Python-разработчиков — от основ до продвинутых техник
 # https://fastapi.qubitpi.org/reference/fastapi/?h=tags_metadata#fastapi.FastAPI--example
 
-
-class HotelPath(BaseModel):
-    hotel_id: int = Field(description="Идентификатор отеля",
-                          ge=1,
-                          )
+# См. документацию про примеры:
+# https://fastapi.tiangolo.com/ru/tutorial/schema-extra-example/?h=#body-with-multiple-examples
+# https://fastapi.qubitpi.org/tutorial/schema-extra-example/?h=#body-with-multiple-examples
 
 
-# Модели pydantic, заканчивающиеся на Test - используются только в тестовоё ручке
-# @router.post("/test/{hotel_id}/{room_id}",
-#              summary="Тестовая ручка для демо методов Path(), "
-#                      "Query(), Body() со схемами Pydantic",
-#              tags=["Отели"])
-# def hotel_test_post(room_path: Annotated[RoomPathTest, Path()],
-#                     hotel_query_data: Annotated[HotelQueryTest, Query()],
-#                     hotel_body_data: Annotated[HotelBodyTest, Body()],
-#                     ):
-#     return f"{room_path.hotel_id = }, {room_path.room_id = }, " \
-#            f"{room_path = }, {hotel_query_data = }, {hotel_body_data = }"
-
-
-class RoomPathTest(HotelPath):
-    room_id: int = Field(description="Идентификатор комнаты",
-                         ge=1,
-                         )
-    room_number: int = Field(description="Номер комнаты (от 1 до 5)",
-                             ge=1,
-                             le=5,
-                             )
-
-
-class HotelQueryTest(BaseModel):
-    hotel_title: str = Field(description="Название (title) отеля",
-                             min_length=3,
-                             )
-    hotel_name: str = Field(default="name",
-                            description="Название (name) отеля",
-                            max_length=50,
-                            )
-
-
-class HotelBodyTest(BaseModel):
-    hotel_body_str: str = Field(default="name",
-                                description="Данные hotel body str (title)",
-                                min_length=3,
-                                )
-    hotel_body_int: int = Field(default=1,
-                                description="Данные hotel body int",
-                                ge=1,
-                                )
-    # См. документацию про примеры:
-    # https://fastapi.tiangolo.com/ru/tutorial/schema-extra-example/?h=#body-with-multiple-examples
-    # https://fastapi.qubitpi.org/tutorial/schema-extra-example/?h=#body-with-multiple-examples
-    model_config = {
-        "json_schema_extra": {
-            # порядок вывод полей - алфавитный, а не как указано в коде.
-            "examples": [
-                {
-                    "hotel_body_str": "data for hotel_body_str",
-                    "hotel_body_int": 33,
-                }
-            ]
-        }
-    }
-
-
-class ItemTest(BaseModel):
-    name: str
-    description: str | None = None
-    price: float
-    tax: float | None = None
+# class HotelPath(BaseModel):
+#     hotel_id: int = Field(description="Идентификатор отеля",
+#                           ge=1,
+#                           examples=[1],
+#                           )
+#     # model_config = {
+#     #     "json_schema_extra": {
+#     #         # порядок вывод полей - алфавитный, а не как указано в коде.
+#     #         "examples": [
+#     #             {
+#     #                 "hotel_id": 1,
+#     #             }
+#     #         ]
+#     #     }
+#     # }
 
 
 hotel = {"title": "Название (title) отеля",
@@ -110,6 +60,17 @@ def hotel_patch(hotel_path: Annotated[HotelPath, Path()],
 """
 
 
+# Параметр examples работает только для типа Body().
+# Коммент в чате: для Path и Query нельзя поставить examples. Они им не нужны
+# UPD я проверил, ни каким образом они не ставятся
+# https://t.me/c/2303072202/82/2878
+class HotelPath(BaseModel):
+    hotel_id: int = Field(description="Идентификатор отеля",
+                          ge=1,
+                          examples=[1],
+                          )
+
+
 class HotelCaptionRec(BaseModel):
     hotel_title: str = Field(description=hotel["title"],
                              min_length=3,
@@ -123,8 +84,10 @@ class HotelCaptionOpt(BaseModel):
     hotel_title: str | None = Field(default=None,
                                     description=hotel["title"],
                                     min_length=3,
+                                    examples=["title отеля"],
                                     )
     hotel_name: str | None = Field(default=None,
                                    description=hotel["name"],
                                    max_length=50,
+                                   examples=["name отеля"],
                                    )
