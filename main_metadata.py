@@ -1,29 +1,19 @@
-# Задание №1: PUT и PATCH ручки отелей
-# Необходимо реализовать 2 ручки:
-#
-#     Ручка PUT на изменение отеля
-#     Ручка PATCH на изменения отеля
-#
-#
-# Обе ручки позволяют видоизменить конкретный отель.
-# Однако, в ручке PUT мы обязаны передать оба параметра
-# title и name, а в PATCH ручке можем передать либо только title,
-# либо только name, либо оба параметра сразу (тогда PATCH ничем
-# не отличается от PUT ручки).
-#
-# Как будут выглядеть ручки:
-#
-# @app.put("/hotels/{hotel_id}")
-# def ...
-#
-# @app.patch("/hotels/{hotel_id}")
-# def ...
+"""
+## Задание №2: Пагинация для отелей. Часть 1
+
+Необходимо реализовать пагинацию для отелей.
+
+Для этого необходимо добавить 2 query параметра page и per_page,
+оба параметра являются необязательными. Если пользователь не передает
+page, то используется значение по умолчанию 1 (то есть первая страница).
+Для per_page ситуация аналогичная — если параметр не передается,
+то используется значение по умолчанию 3 (можете выбрать любое другое).
+"""
 
 import uvicorn
 from fastapi import FastAPI, Query, Body
 
 from pydantic import BaseModel
-
 
 # Данные передаются через URL, через Query-параметры (метод Query)
 # или через ТЕЛО запроса (метод Body).
@@ -117,7 +107,54 @@ from pydantic import BaseModel
 #        - hotel_name: str
 
 
-app = FastAPI()
+# URL-адреса метаданных и документации
+# https://fastapi.tiangolo.com/ru/tutorial/metadata/
+
+description = """
+# Это тестовое API.
+
+## Разделы
+
+Можно прочитать информацию о разделах в **справке**.
+
+## Пользователи
+
+Реализованы методы:
+
+* **Создать пользователя** (_not implemented_).
+* **Показать пользователя** (_not implemented_).
+"""
+
+tags_metadata = [
+    {
+        "name": "users",
+        "description": "Operations with users. The **login** logic is also here.",
+    },
+    {
+        "name": "items",
+        "description": "Manage items. So _fancy_ they have their own docs.",
+        "externalDocs": {
+            "description": "Items external docs",
+            "url": "https://fastapi.tiangolo.com/",
+        },
+    },
+]
+
+app = FastAPI(title="HotelsApp",
+              description=description,
+              summary="Тут краткое резюме о чём API",
+              version="0.0.1",
+              terms_of_service="http://example.com/terms/",
+              contact={
+                  "name": "Имя разработчика",
+                  "url": "http://x-force.example.com/contact/",
+                  "email": "dp@x-force.example.com",
+              },
+              license_info={
+                  "name": "Apache 2.0",
+                  "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+              },
+              openapi_tags=tags_metadata)
 
 hotels = [
     {"id": 1, "title": "Sochi", "name": "sochi"},
@@ -132,6 +169,7 @@ class HotelItem(BaseModel):
 
 
 @app.get("/hotels",
+         tags=["users"],
          summary="Вывод списка всех отелей одновременно",
          description="<h2>Функция выводит список всех отелей.</h2>"
                      "Параметры отсутствуют"
@@ -141,6 +179,7 @@ def show_hotels():
 
 
 @app.get("/hotel",
+         tags=["items"],
          summary="Вывод информации об одном отеле",
          description="<h2>Функция выводит информацию о выбранном отеле.</h2>"
                      "<ul>Параметры (передаются методом Query):"
@@ -169,9 +208,6 @@ def get_hotel(hotel_id: int | None = Query(None, description="Айдишник")
     # То тогда будет результат в виде списка.
     found_hotel = []
     for hotel in hotels:
-        # Конструкция "if hotel_id and" - позволяет отсечь варианты, когда параметр не задан.
-        # Если её не использовать, то всегда будет выполняться условие hotel["id"] != hotel_id,
-        # и цикл будет переходить к следующей итерации, игнорируя проверку со вторым параметром.
         if hotel_id and hotel["id"] != hotel_id:
             continue
         if hotel_title and hotel["title"] != hotel_title:
@@ -389,4 +425,4 @@ def hotel_id_patch(hotel_id: int,
 
 
 if __name__ == "__main__":
-    uvicorn.run("main_body:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
