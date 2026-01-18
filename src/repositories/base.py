@@ -9,7 +9,9 @@ from sqlalchemy import delete as sa_delete  # Для реализации SQL к
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies.dependencies import pagination_pages
+from src.api.dependencies.dependencies_consts import pagination_pages
+
+
 # from src.database import engine
 
 # engine нужен, чтобы использовать диалект SQL:

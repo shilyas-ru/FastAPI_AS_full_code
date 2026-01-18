@@ -104,3 +104,25 @@ async def create_booking_room_id_post(roompath: Annotated[BookingsRoomPath, Path
     booking = await db.bookings.add(_booking_params)
     await db.commit()
     return {"booking": booking}
+
+
+@router.get("",
+            summary="Получение всех бронирований",
+            )
+async def show_bookings_all_get(db: DBDep):
+    return await db.bookings.get_all()
+
+
+@router.get("/me",
+            summary="Получение только своих бронирований",
+            )
+async def show_bookings_my_get(user_id: UserIdDep,
+                               db: DBDep):
+    # Определяем идентификатор пользователя - user_id передаётся из UserIdDep
+    if not user_id:
+        # Пользователь не авторизовался
+        # status_code=401: не аутентифицирован
+        raise HTTPException(status_code=401,
+                            detail="Пользователь не авторизовался")
+    user = await db.users.get_id(object_id=user_id)
+    return await db.bookings.get_all(user=user)

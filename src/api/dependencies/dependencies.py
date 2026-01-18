@@ -16,7 +16,10 @@ from src.utils.db_manager import DBManager
 # pagination_pages = {"page": 1,
 #                     "per_page": 3,
 #                     }
-
+# from src.api.dependencies.dependencies import pagination_pages
+# Файлы, где используются:
+#   - \src\api\dependencies\dependencies.py
+#   - \src\repositories\base.py
 
 # Класс определяет пагинацию, включающую только вывод по страницам
 class PaginationPagesListParams(BaseModel):

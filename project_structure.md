@@ -24,7 +24,8 @@ Project
 │                   В последней строке меняем 79 на 88 – это количество символов в строке.
 │                   - Раскомментируем строку 12:
 │                   file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
-├── http_errors_statuses.txt        Описание http кодов ошибок, которые могут использоваться. Для справки.
+├── http_errors_statuses.txt        Описание http кодов ошибок, которые могут 
+│                                   использоваться. Для справки.
 ├── project_structure.md            Этот файл.
 ├── requirements.txt                Пакеты для установки.
 ├── variables_abbreviations_and_naming.md    Сокращения, используемые при
