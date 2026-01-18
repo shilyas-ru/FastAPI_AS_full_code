@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 
-
 # Pydantic 2: Полное руководство для Python-разработчиков — от основ до продвинутых техник
 # https://fastapi.qubitpi.org/reference/fastapi/?h=tags_metadata#fastapi.FastAPI--example
 
@@ -26,9 +25,13 @@ from pydantic import BaseModel, Field
 #     # }
 
 
-hotel = {"title": "Название (title) отеля",
-         "name": "Название (name) отеля",
+hotel = {"title": "Название отеля",
+         "location": "Местонахождение отеля",
          }
+
+hotel_examples = {"title": "Название отеля",
+                  "location": "Местонахождение отеля",
+                  }
 
 """
 Можно было бы описать один класс так:
@@ -61,6 +64,10 @@ def hotel_patch(hotel_path: Annotated[HotelPath, Path()],
 
 
 class HotelPath(BaseModel):
+    # Поля указываем такие же, как в дальнейшем будем указывать в ссылках:
+    # @router.delete("/{hotel_id}",...
+    # Если поле в классе и имя переменной в ссылке будут различными, то возникнет
+    # ошибка "422 unprocessable entity"
     hotel_id: int = Field(description="Идентификатор отеля",
                           ge=1,
                           examples=[1],
@@ -68,22 +75,28 @@ class HotelPath(BaseModel):
 
 
 class HotelCaptionRec(BaseModel):
-    hotel_title: str = Field(description=hotel["title"],
-                             min_length=3,
-                             )
-    hotel_name: str = Field(description=hotel["name"],
-                            max_length=50,
-                            )
+    # Поля указываем такие же, как именованы колонки в таблице
+    # hotels (класс HotelsORM в файле src\models\hotels.py).
+    title: str = Field(description=hotel["title"],
+                       min_length=3,
+                       examples=[hotel_examples["title"]],
+                       )
+    location: str = Field(description=hotel["location"],
+                          max_length=50,
+                          examples=[hotel_examples["location"]],
+                          )
 
 
 class HotelCaptionOpt(BaseModel):
-    hotel_title: str | None = Field(default=None,
-                                    description=hotel["title"],
-                                    min_length=3,
-                                    examples=["title отеля"],
-                                    )
-    hotel_name: str | None = Field(default=None,
-                                   description=hotel["name"],
-                                   max_length=50,
-                                   examples=["name отеля"],
-                                   )
+    # Поля указываем такие же, как именованы колонки в таблице
+    # hotels (класс HotelsORM в файле src\models\hotels.py).
+    title: str | None = Field(default=None,
+                              description=hotel["title"],
+                              min_length=3,
+                              examples=[hotel_examples["title"]],
+                              )
+    location: str | None = Field(default=None,
+                                 description=hotel["location"],
+                                 max_length=50,
+                                 examples=[hotel_examples["location"]],
+                                 )
