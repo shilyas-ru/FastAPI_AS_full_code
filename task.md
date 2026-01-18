@@ -1,67 +1,27 @@
-## Задание №9: Получение cookie пользователя внутри ручки
+## Задание №10: Ручка на выход из системы
 
-Необходимо реализовать получение токена access_token из cookie пользователя, которые отправляет браузер. Внутри cookie может либо находится наш токен, либо будет пусто (если юзер не аутентифицирован).
+Необходимо реализовать ручку для выхода из системы. Ручку 
+можно назвать /logout. После вызова ручки пользователя должно 
+"разлогинить" — подумайте, как это можно реализовать, зная, 
+как "залогинить" пользователя
 
-Цель задания — открыть для себя мир исходного кода библиотек, с которыми вы работаете. Взглянуть на код, который пишут продвинутые Python разработчики (см. [скриншот](Screenshot_at_Aug_28_23-55-56.png)), а также переписать ручки PUT и DELETE.
-
-***Скриншот:***<br>
-<img src="https://github.com/shilyas-ru/FastAPI_AS/blob/main/10-User_authorization_and_authentication-Receiving_user_cookies/Screenshot_at_Aug_28_23-55-56.png" alt="скриншот" height="135">
-
-
-*Код со [скриншота](Screenshot_at_Aug_28_23-55-56.png):*
-```
-@router.get("/only_auth")
-async def only_auth(
-        request: Request,
-):
-    ...
-    access_token = "..." or None
-```
-
-
-## Уведомления
-
-- Требуется создать в корне проекта файл `.env` и заполнить значения, указанные в файле `.env`:
-```
-DB_HOST=
-DB_PORT=
-DB_USER=
-DB_PASS=
-DB_NAME=
-
-JWT_SECRET_KEY=
-JWT_ALGORITHM=
-ACCESS_TOKEN_EXPIRE_MINUTES=
-```
-Пример заполнения данных (указывается только по причине того, что проект учебный!!!), так же см. файл [.env-example](.env-example):
-```
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASS=postgres
-DB_NAME=booking
-
-JWT_SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-```
+Вам необходимо провести небольшое исследование и понять, 
+какой HTTP метод стоит использовать для этой операции — GET, 
+POST, PUT, PATCH или DELETE.
 
 
 ## Что сделано
 
-К заданию №8 "Задание №8: Запретить создание нескольких юзеров с одинаковой почтой" добавлено:
+К заданию №9 "Задание №9: Получение cookie пользователя внутри ручки" добавлено:
 
-- Создан роутер для работы с пользователями (см. файл "[src/api/routers/auth.py](src/api/routers/auth.py)"), написана обработка:
-    - post("/auth/login") - Проверка, что пользователь существует и может 
-        авторизоваться.<br>
-        Функция: login_user_post
-    - post("/auth/register") - Создание записи с новым пользователем.<br>
-        Функция: register_user_post
-    - post("/auth/only_auth") - Тестовый метод для получения куков по имени 
-        (в примере проверяется значение для access_token).<br>
-        Функция: only_auth
+- Изменено:
+    - get("/auth/only_auth"). Адрес для обращения изменён на "/auth/get_me", функция переименована в get_me_get, добавлено получение пользователя.
 
-- Создан файл для работы с токенами, авторизацией, хешированием паролей и т.д. (см. файл "[src/services/auth.py](src/services/auth.py)"), используется в "[src/api/routers/auth.py](src/api/routers/auth.py)"
+- Добавлено:
+    - В классе AuthService добавлены методы для кодирования/декодирования JWT-токенов. Сделано для того, чтобы токен нельзя было расшифровать штатными инструментами.
+    - В файле "[src/api/dependencies/dependencies.py](src/api/dependencies/dependencies.py)" добавлены функции: get_token и get_current_user_id.
+    - delete("/auth/logout"). Выход авторизованного пользователя.<br>
+    Функция: get_me_delete.
 
 
 Рабочие ссылки (список методов, параметры в подробном перечне):
@@ -70,9 +30,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
     Функция: login_user_post
 - post("/auth/register") - Создание записи с новым пользователем.<br>
     Функция: register_user_post
-- post("/auth/only_auth") - Тестовый метод для получения куков по имени 
+- get("/auth/get_me") - Тестовый метод для получения куков по имени 
     (в примере проверяется значение для access_token).<br>
-    Функция: only_auth
+    Функция: get_me_get
+- delete("/auth/logout"). Выход авторизованного пользователя.
+    Функция: get_me_delete.
 
 
 ## Итог

@@ -2,9 +2,10 @@ from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, HTTPException, Response, Request
+from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy.exc import IntegrityError
 
+from src.api.dependencies.dependencies import UserIdDep
 from src.config import settings
 from src.database import async_session_maker
 from src.repositories.users import UsersRepository
@@ -160,9 +161,18 @@ async def login_user_post(user_info: UserDescriptionRecURL,
     return {"status": status, "access_token": access_token}  # отправили клиенту
 
 
-@router.get("/only_auth",
-            summary="Тестовый метод для получения куков по имени - access_token",
+@router.get("/get_me",
+            summary="Получение информации о текущем авторизованном пользователе",
             )
-async def only_auth(request: Request):
-    access_token = request.cookies.get('access_token', None)
-    return access_token
+async def get_me_get(user_id: UserIdDep):
+    async with async_session_maker() as session:
+        user = await UsersRepository(session).get_id(object_id=user_id)
+    return user_id, user
+
+
+@router.delete("/logout",
+               summary="Выход авторизованного пользователя",
+               )
+async def get_me_delete(response: Response):
+    response.delete_cookie("access_token")
+    return {"status": "OK"}

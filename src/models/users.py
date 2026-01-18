@@ -12,11 +12,22 @@ class UsersORM(Base):
     # Первичный ключ, уникальное значение
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # Наименование отеля
+    # Электронная почта пользователя
     email: Mapped[str] = mapped_column(String(length=200), unique=True)
 
-    # Местонахождение отеля.
+    # Хэшированный пароль.
     hashed_password: Mapped[str] = mapped_column(String(length=200))
+
+    # # Ниже строки не внесены в БД, потом обработать надо.
+    # # Это гипотетические параметры о пользователе.
+    # # Ник
+    # nick_name: str | None = None
+    #
+    # # Полное имя
+    # full_name: str | None = None
+    #
+    # # Заблокирован пользователь или нет
+    # disabled: bool | None = None
 
 
 
