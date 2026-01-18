@@ -105,7 +105,72 @@ class BaseRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_rows(self, *args,
+    # Сделаны методы:
+    #
+    # - get_filtered. Выбирает строки по указанным фильтрам из таблицы.
+    #       Использует фильтры: Использует фильтры: .filter(*filter), .filter_by(**filter_by).
+    #       Возвращает пустой список: [] или список из выбранных строк, тип
+    #       возвращаемых элементов преобразован к схеме Pydantic: self.schema.
+    # - get_rows. Выбирает заданное количество строк с заданным смещением.
+    #       Возвращает пустой список: [] или список из выбранных строк, тип
+    #       возвращаемых элементов преобразован к схеме Pydantic: self.schema.
+    # - add. Добавляет один объект в базу, используя метод insert.
+    #       Возвращает список, содержащий добавленный объект.
+    # - edit. Редактирует один объект в базе, используя метод update.
+    #       Возвращает пустой список: [] или список из выбранных строк, тип
+    #       возвращаемых элементов преобразован к схеме Pydantic: self.schema.
+    #       Возвращаемый список содержит отредактированные элементы.
+    # - edit_id. Выбирает по идентификатору (поле self.model.id) один объект в базе,
+    #       используя метод get.
+    #       Редактирует один объект в базе, обновление реализовано через обновление
+    #       атрибутов объекта: setattr(updated_object, key, value).
+    #       Возвращает None или отредактированный объект, преобразованный к
+    #       схеме Pydantic: self.schema.
+    # - delete. Удаляет один объект в базе, используя метод delete.
+    #       Возвращает пустой список: [] или список из выбранных строк, тип
+    #       возвращаемых элементов преобразован к схеме Pydantic: self.schema.
+    #       Возвращаемый список содержит удалённые элементы.
+    # - delete_id. Выбирает по идентификатору (по первичному ключу) - поле
+    #       self.model.id один объект в базе, используя метод get, удаляет
+    #       методом session.delete.
+    #       Используются методы:
+    #       - session.get(RoomsORM, object_id) для получения объекта по ключу
+    #       - session.delete(room_object) для удаления объекта room_object.
+    #       Возвращает None или удалённый объект, преобразованный к схеме
+    #       Pydantic: self.schema.
+    # - get_id. Выбирает по идентификатору (поле self.model.id) один
+    #       объект в базе, используя метод get.
+    #       Возвращает None или объект, преобразованный к схеме
+    #       Pydantic: self.schema.
+    # - get_one_or_none. Выбирает объекты из базы по запросу с фильтрами
+    #       filter_by(**filtering). Использует штатный метод one_or_none().
+    #       Возвращает первую строку результата или None если результатов нет.
+    #       Вызывает исключение если есть более одного результата.
+
+    async def get_filtered(self, *filter, **filter_by):
+        """
+        Метод класса. Выбирает строки по указанным фильтрам из таблицы.
+        Использует фильтры: .filter(*filter), .filter_by(**filter_by).
+
+        Реализован в соответствии с кодом из урока - чтобы понять, как работает
+        выборка отелей со свободными номерами или выборка свободных номеров.
+
+        :return: Возвращает пустой список: [] или список из выбранных строк:
+                [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+                 HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+                 ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+                Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+        """
+        # query = (
+        #     select(self.model)
+        #     .filter(*filter)
+        #     .filter_by(**filter_by)
+        # )
+        # result = await self.session.execute(query)
+        # return [self.schema.model_validate(model) for model in result.scalars().all()]
+        return await self.get_rows(*filter, show_all=True, **filter_by)
+
+    async def get_rows(self, *filter,
                        query=None,
                        per_page=pagination_pages["per_page"],
                        page=pagination_pages["page"],
@@ -119,11 +184,11 @@ class BaseRepository:
                        #                 Не используется, если параметр show_all=True.
                        show_all=None,
                        order_by=True,
-                       **kwargs):
+                       **filter_by):
         """
-        Метод выбирает заданное количество строк с заданным смещением.
+        Метод класса. Выбирает заданное количество строк с заданным смещением.
 
-        :param args: Возможные неименованные аргументы (не используются).
+        :param filter: Фильтры для запроса - конструкция .filter(*filter).
         :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
                 то он формируется внутри метода. В качестве значений могут
                 приходить запросы, связанные с разными фильтрами.
@@ -140,7 +205,7 @@ class BaseRepository:
                 записи, соответствующие запросу (True), или выбирать,
                 основываясь на порядке в базе данных (False или None).
                 Может отсутствовать.
-        :param kwargs: Возможные иные именованные аргументы (не используются).
+        :param filter_by: Фильтры для запроса - конструкция .filter_by(**filter_by).
 
         :return: Возвращает пустой список: [] или список из выбранных строк:
                 [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
@@ -151,6 +216,11 @@ class BaseRepository:
 
         if query is None:
             query = sa_select(self.model)
+
+            query = (query
+                     .filter(*filter)
+                     .filter_by(**filter_by)
+                     )
 
         if not show_all:
             limit = per_page
@@ -250,7 +320,8 @@ class BaseRepository:
                [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
                 HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
                 ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
-               Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+               Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema.
+               Возвращаемый список содержит отредактированные элементы.
         """
         # edit_stmt = (sa_update(self.model)
         #              .filter_by(**filtering)
@@ -298,7 +369,8 @@ class BaseRepository:
             редактировать только те поля, которым явно присвоено значением
             (даже если присвоили None).
 
-        :return: Возвращает None или объект, преобразованный к схеме Pydantic: self.schema.
+        :return: Возвращает None или отредактированный объект, преобразованный
+            к схеме Pydantic: self.schema.
         """
         # Получаем объект по первичному ключу
         result = await self.session.get(self.model, object_id)
@@ -355,6 +427,7 @@ class BaseRepository:
                ..., HotelPydanticSchema(title='title_string_N',
                                         location='location_string_N', id=198)]
               Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+              Возвращаемый список содержит удалённые элементы.
         """
         # delete_stmt = sa_delete(self.model).filter_by(**filtering).returning(self.model)
         if delete_stmt is None:
@@ -465,12 +538,14 @@ class BaseRepository:
             return result_pydantic_schema
         return None
 
-    async def get_one_or_none(self, query=None,
+    async def get_one_or_none(self,
+                              query=None,
                               pydantic_schema=None,
                               **filtering):  # -> None:
         """
-        Метод класса. Выбирает по идентификатору (поле self.model.id) один
-        объект в базе, используя метод get.
+        Метод класса. Выбирает объекты из базы по запросу с
+        фильтрами filter_by(**filtering).
+        Использует штатный метод one_or_none().
 
         :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
             то он формируется внутри метода. В качестве значений могут
@@ -506,7 +581,8 @@ class BaseRepository:
         result = result.scalars().one_or_none()
         # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
         # one_or_none() чтобы вернуть первую строку результата или None
-        # если результатов нет, или вызвать исключение если есть более одного результата.
+        # если результатов нет, или вызвать исключение exc.MultipleResultsFound,
+        # если есть более одного результата.
 
         # Шаг 4: Преобразование объекта SQLAlchemy в Pydantic
         if result:

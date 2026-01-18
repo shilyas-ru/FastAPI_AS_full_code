@@ -18,17 +18,17 @@ from src.api.routers.bookings import router as router_bookings
 
 
 """
-## Задание № 13: Ручки на получение бронирований
-Необходимо создать две ручки на получение бронирований:
+## Задание № 14: Вернуть пагинацию и фильтрацию в получение отелей
+Необходимо добавить фильтрацию и пагинацию в метод get_filtered_by_time 
+в HotelsRepository и в API ручку /hotels. 
 
-    Получение всех бронирований /bookings
-    Получение только своих бронирований /bookings/me
+Метод get_all в HotelsRepository необходимо удалить.
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Задание № 13: Ручки на получение бронирований",  # short summary of the API
-    "version": "ver. 0.13.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Задание № 14: Вернуть пагинацию и фильтрацию в получение отелей",  # short summary of the API
+    "version": "ver. 0.14.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
@@ -70,8 +70,11 @@ tags_metadata = {
                    "Проверка JWT токенов онлайн - jwt.io</a>.</li>"
                    '<li><a href="https://restfulapi.net/resource-naming/" target="_blank">'
                    "REST API URI Naming Conventions and Best Practices</a>.</li>"
-                   '<li><a href="https://github.com/arthurio/fastapi-filter/blob/main/docs/index.md" target="_blank">'
+                   '<li><a href="https://github.com/arthurio/fastapi-filter/blob/main/docs/index.md" '
+                   'target="_blank">'
                    "FastAPI Filter</a>.</li>"
+                   '<li><a href="https://habr.com/ru/articles/714570/" target="_blank">'
+                   "Фильтрация и пагинация в FastAPI</a>.</li>"
                    "</ul>"
                    'В методе API `delete("/hotels")` можно получить список удаляемых записей '
                    "через параметр "

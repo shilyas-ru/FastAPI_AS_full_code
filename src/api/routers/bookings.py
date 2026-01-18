@@ -63,8 +63,9 @@ router = APIRouter(prefix="/bookings", tags=["Бронирование"])
 
 @router.post("/rooms/{room_id}",
              summary="Создание записи о новом бронировании номера в отеле",
+             description="Тут будет описание параметров метода",
              )
-async def create_booking_room_id_post(roompath: Annotated[BookingsRoomPath, Path()],
+async def create_booking_room_id_post(room_path: Annotated[BookingsRoomPath, Path()],
                                       booking_params: Annotated[BookingsInfoRecRequest,
                                                                 Body()],
                                       user_id: UserIdDep,
@@ -81,14 +82,14 @@ async def create_booking_room_id_post(roompath: Annotated[BookingsRoomPath, Path
                             detail="Пользователь не авторизовался")
 
     # Получаем цену номера - смотрим таблицу rooms
-    room = await db.rooms.get_one_or_none(id=roompath.room_id)
+    room = await db.rooms.get_one_or_none(id=room_path.room_id)
 
     if not room:
         # status_code=404: Сервер понял запрос, но не нашёл
         #                  соответствующего ресурса по указанному URL
         raise HTTPException(status_code=404,
                             detail={"description": "Нет номера с идентификатором "
-                                                   f"{roompath.room_id}",
+                                                   f"{room_path.room_id}",
                                     })
     price = room.price
 
@@ -96,7 +97,7 @@ async def create_booking_room_id_post(roompath: Annotated[BookingsRoomPath, Path
     # что по указанным датам они свободны. Практически, мы это не проверяем.
 
     # Создаем схему данных с ценой и пользователем - все поля, кроме id
-    _booking_params = BookingsInfoRecFull(room_id=roompath.room_id,
+    _booking_params = BookingsInfoRecFull(room_id=room_path.room_id,
                                           user_id=user_id,
                                           price=price,
                                           **booking_params.model_dump())
@@ -107,14 +108,18 @@ async def create_booking_room_id_post(roompath: Annotated[BookingsRoomPath, Path
 
 
 @router.get("",
-            summary="Получение всех бронирований",
+            summary="Получение всех бронирований - выводится список "
+                    "всех забронированных номеров по всем отелям",
+            description="Тут будет описание параметров метода",
             )
 async def show_bookings_all_get(db: DBDep):
     return await db.bookings.get_all()
 
 
 @router.get("/me",
-            summary="Получение только своих бронирований",
+            summary="Получение только своих бронирований - выводится "
+                    "список бронирований для аутенцифицированного пользователя",
+            description="Тут будет описание параметров метода",
             )
 async def show_bookings_my_get(user_id: UserIdDep,
                                db: DBDep):

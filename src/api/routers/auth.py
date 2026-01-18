@@ -28,6 +28,7 @@ router = APIRouter(prefix="/auth", tags=["Авторизация и аутент
 
 @router.post("/register",
              summary="Создание записи с новым пользователем",
+             description="Тут будет описание параметров метода",
              )
 async def register_user_post(user_info: UserDescriptionRecURL, db: DBDep):
     """
@@ -45,7 +46,8 @@ async def register_user_post(user_info: UserDescriptionRecURL, db: DBDep):
     В текущей реализации статус завершения операции всегда один и тот же: OK
     """
     hashed_password = AuthService().hashed_password(user_info.password)
-    new_user_info = UserBase(email=user_info.email, hashed_password=hashed_password)
+    new_user_info = UserBase(email=user_info.email,
+                             hashed_password=hashed_password)
 
     # При попытке добавить пользователя с уже существующим в БД
     # email будет ошибка (отрабатывается на уровне базы данных):
@@ -71,6 +73,7 @@ async def register_user_post(user_info: UserDescriptionRecURL, db: DBDep):
 
 @router.post("/login",
              summary="Авторизация пользователя",
+             description="Тут будет описание параметров метода",
              )
 async def login_user_post(user_info: UserDescriptionRecURL,
                           response: Response,
@@ -94,10 +97,28 @@ async def login_user_post(user_info: UserDescriptionRecURL,
     # Можно сделать специальный метод, но проще "заточить" в базовом
     # классе репозитория BaseRepositoryMyCode метод get_one_or_none,
     # чтобы его можно было настраивать на конкретную Pydantic схему.
+    # По факту метод не используется:
     # user = await UsersRepository(session).get_user_with_hashed_password(email=user_info.email)
+    # По факту метод не используется:
+    # user = await db.users.get_user_with_hashed_password(email=user_info.email)
+    #   Возвращается
+    #   - если пользователь не найден: None;
+    #   - найденный пользователь:
+    #     UserWithHashedPasswordPydSchm(id=4,
+    #                                   email='user@example.com',
+    #                                   hashed_password='$2b$12$Hvd4XKN2wN3S1sIMnC0Iu.TCtaZ/br7eWKClms0C6QuIBdJm2LMK6'
+    #                                   )
     user = await db.users.get_one_or_none(pydantic_schema=UserWithHashedPasswordPydSchm,
                                           email=user_info.email)
-    # user - это Pydantic схема UserPydanticSchema
+    # user - это Pydantic схема UserWithHashedPasswordPydSchm
+    # Возвращается
+    # - если пользователь не найден: None;
+    # - найденный пользователь:
+    #   UserWithHashedPasswordPydSchm(id=4,
+    #                                 email='user@example.com',
+    #                                 hashed_password='$2b$12$Hvd4XKN2wN3S1sIMnC0Iu.TCtaZ/br7eWKClms0C6QuIBdJm2LMK6'
+    #                                 )
+    # Если несколько пользователей найдено - поднимается исключение exc.MultipleResultsFound
     if not user:
         # Пользователь с таким email уже имеется
         # status_code=401: не аутентифицирован
@@ -124,6 +145,7 @@ async def login_user_post(user_info: UserDescriptionRecURL,
 
 @router.get("/get_me",
             summary="Получение информации о текущем авторизованном пользователе",
+            description="Тут будет описание параметров метода",
             )
 async def get_me_get(user_id: UserIdDep, db: DBDep):
     # Определяем идентификатор пользователя
@@ -139,6 +161,7 @@ async def get_me_get(user_id: UserIdDep, db: DBDep):
 
 @router.delete("/logout",
                summary="Выход авторизованного пользователя",
+               description="Тут будет описание параметров метода",
                )
 async def get_me_delete(response: Response):
     response.delete_cookie("access_token")

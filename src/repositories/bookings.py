@@ -29,10 +29,15 @@ class BookingsRepository(BaseRepository):
     model = BookingsORM
     schema = BookingsPydanticSchema
 
+    # Сделаны методы:
+    #
+    # - get_all. Выбирает все забронированные номера.
+    #       Использует родительский метод get_rows.
+
     # async def get_all(self, db: DBDep, user_id: int | None = None):
     async def get_all(self, user: BaseModel | None = None):
         """
-        Метод класса. Выбирает все строки для бронирования.
+        Метод класса. Выбирает все забронированные номера.
         Использует родительский метод get_rows.
 
         :param db: Контекстный менеджер.
@@ -56,7 +61,7 @@ class BookingsRepository(BaseRepository):
 
         result = await super().get_rows(query=query,
                                         show_all=True)
-        # Возвращает пустой список: [] или список:
+        # Возвращает пустой список: [] или список из элементов BookingsPydanticSchema:
         # [BookingsPydanticSchema(room_id=12, user_id=4,
         #                         date_from=datetime.date(2025, 1, 22),
         #                         date_to=datetime.date(2025, 1, 27),

@@ -1,4 +1,5 @@
-import sqlalchemy
+from datetime import date
+
 from fastapi import Query, Body, Path, APIRouter
 from typing import Annotated
 
@@ -7,7 +8,8 @@ from sqlalchemy import delete as sa_delete  # Для реализации SQL к
 
 from src.schemas.hotels import HotelPath, HotelDescriptionRecURL, HotelDescriptionOptURL
 
-from src.api.dependencies.dependencies import PaginationPagesDep, PaginationAllDep, DBDep
+from src.api.dependencies.dependencies import PaginationPagesDep, PaginationAllDep
+from src.api.dependencies.dependencies import DBDep
 
 """
 Рабочие ссылки (список методов, параметры в подробном перечне):
@@ -63,11 +65,12 @@ patch("/hotels/{hotel_id}") - Обновление каких-либо данн�
 router = APIRouter(prefix="/hotels", tags=["Отели"])
 
 
-@router.get("",
+@router.get("/all",
             summary="Вывод списка всех отелей одновременно с "
                     "разбивкой по страницам или весь список полностью",
+            description="Тут будет описание параметров метода",
             )
-async def show_hotels_get(pagination: PaginationAllDep, db: DBDep):
+async def show_hotels_all_get(pagination: PaginationAllDep, db: DBDep):
     """
     ## Функция выводит список всех отелей с разбивкой по страницам или весь список полностью.
 
@@ -124,16 +127,65 @@ async def show_hotels_get(pagination: PaginationAllDep, db: DBDep):
     ```
     """
 
-    if pagination.all_hotels:
-        return await db.hotels.get_all()
-    else:
-        return await db.hotels.get_limit(per_page=pagination.per_page,
-                                         page=pagination.page)
+    # if pagination.all_hotels:
+    #     return await db.hotels.get_all()
+    # else:
+    #     return await db.hotels.get_limit(per_page=pagination.per_page,
+    #                                      page=pagination.page)
+    return await db.hotels.get_limit(per_page=pagination.per_page,
+                                     page=pagination.page,
+                                     show_all=pagination.all_hotels,
+                                     )
+
+
+@router.get("/free",
+            summary="Вывод списка всех отелей одновременно с "
+                    "разбивкой по страницам или весь список полностью",
+            description="Тут будет описание параметров метода",
+            )
+async def show_hotels_free_get(pagination: PaginationAllDep,
+                               db: DBDep,
+                               # check_dates: BookingDateDep,
+                               # date_from: date = Query(example='2025-01-20',
+                               #                         description="Дата, С которой бронируется номер",
+                               #                         default=None),
+                               # date_to: date = Query(example='2025-01-23',
+                               #                       description="Дата, ДО которой бронируется номер",
+                               #                       default=None),
+                               date_from: Annotated[date | None,
+                                                    Query(example='2025-01-20',
+                                                          description="Дата, С которой бронируется номер",
+                                                          )] = None,
+                               date_to: Annotated[date | None,
+                                                  Query(example='2025-01-23',
+                                                        description="Дата, ДО которой бронируется номер",
+                                                        )] = None
+                               ):
+    # if pagination.all_hotels:
+    #     return await db.hotels.get_limit(date_from=date_from,
+    #                                      date_to=date_to,
+    #                                      show_all=True)
+    #     # return await db.hotels.get_all()
+    # else:
+    #     return await db.hotels.get_limit(date_from=date_from,
+    #                                      date_to=date_to,
+    #                                      per_page=pagination.per_page,
+    #                                      page=pagination.page,
+    #                                      )
+    return await db.hotels.get_limit(date_from=date_from,
+                                     date_to=date_to,
+                                     per_page=pagination.per_page,
+                                     page=pagination.page,
+                                     show_all=pagination.all_hotels,
+                                     )
+    # return await db.hotels.get_filtered_by_time(date_from=date_from,
+    #                                             date_to=date_to)
 
 
 @router.get("/find",
             summary="Поиск отелей по заданным параметрам и "
                     "вывод итогового списка с разбивкой по страницам",
+            description="Тут будет описание параметров метода",
             )
 async def find_hotels_get(pagination: PaginationPagesDep,
                           db: DBDep,
@@ -156,6 +208,29 @@ async def find_hotels_get(pagination: PaginationPagesDep,
                                                                    "поиск строк, содержащих "
                                                                    "заданный текст (False или None)",
                                                        )] = None,
+                          # check_dates: BookingDateAllDep
+                          hotels_with_free_rooms: Annotated[bool | None,
+                                                            Query(alias="hotels-with-free-rooms",
+                                                                  description="Отели со свободными номерами "
+                                                                              "в указанные даты "
+                                                                              "(True) или полный список отелей "
+                                                                              "не учитывая указанные даты"
+                                                                              "(False или None)",
+                                                                  )] = None,
+                          # date_from: date = Query(example='2025-01-20',
+                          #                         description="Дата, С которой бронируется номер",
+                          #                         default=None),
+                          # date_to: date = Query(example='2025-01-23',
+                          #                       description="Дата, ДО которой бронируется номер",
+                          #                       default=None),
+                          date_from: Annotated[date | None,
+                                               Query(example='2025-01-20',
+                                                     description="Дата, С которой бронируется номер",
+                                                     )] = None,
+                          date_to: Annotated[date | None,
+                                             Query(example='2025-01-23',
+                                                   description="Дата, ДО которой бронируется номер",
+                                                   )] = None
                           ):
     """
     ## Функция ищет отели по заданным параметрам и выводит информацию о найденных отелях с разбивкой по страницам.
@@ -175,6 +250,14 @@ async def find_hotels_get(pagination: PaginationPagesDep,
                 по умолчанию значение 1).
     - ***:param** per_page:* Количество элементов на странице (должно быть
                 >=1 и <=30, по умолчанию значение 3).
+    - ***:param** hotels_with_free_rooms:* Выбирать отели со свободными
+                номерами в указанные даты (True) или выбирать полный список отелей
+                не учитывая указанные даты (False или None).
+                Может отсутствовать.
+    - ***:param** date_from:* Дата, С которой бронируется номер.
+            Используется, если параметр hotels_with_free_rooms=True.
+    - ***:param** date_to:* Дата, ДО которой бронируется номер.
+            Используется, если параметр hotels_with_free_rooms=True.
 
     ***:return:*** Список отелей или строка с уведомлением, если список отель пуст.
 
@@ -202,13 +285,32 @@ async def find_hotels_get(pagination: PaginationPagesDep,
                                                              "starts_with": starts_with},
                                                       order_by=True,
                                                       )
+    # if hotels_with_free_rooms:
+    #     # Выбирать отели со свободными номерами в указанные даты (True)
+    #     if not (date_from and date_to):
+    #         # status_code=422: Запрос сформирован правильно, но его невозможно
+    #         #                  выполнить из-за семантических ошибок
+    #         #                  Unprocessable Content (WebDAV)
+    #         raise HTTPException(status_code=422,
+    #                             detail={"description": "Не заданы даты для выбора "
+    #                                                    "отелей со свободными номерами",
+    #                                     })
+    # else:
+    #     date_from = None,
+    #     date_to = None
+
     return await db.hotels.get_limit(query=query,
                                      per_page=pagination.per_page,
-                                     page=pagination.page)
+                                     page=pagination.page,
+                                     hotels_with_free_rooms=hotels_with_free_rooms,
+                                     date_from=date_from,
+                                     date_to=date_to,
+                                     )
 
 
 @router.get("/{hotel_id}",
             summary="Получение из базы данных выбранной записи по идентификатору отеля",
+            description="Тут будет описание параметров метода",
             )
 async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()], db: DBDep):
     """
@@ -237,6 +339,7 @@ async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()], db: DBDep):
 
 @router.delete("/{hotel_id}",
                summary="Удаление выбранной записи по идентификатору отеля",
+               description="Тут будет описание параметров метода",
                )
 async def delete_hotel_id_del(hotel_path: Annotated[HotelPath, Path()], db: DBDep):
     """
@@ -273,6 +376,7 @@ async def delete_hotel_id_del(hotel_path: Annotated[HotelPath, Path()], db: DBDe
 @router.delete("",
                summary="Удаление выбранных записей с выборкой по наименованию "
                        "и адресу отеля - что требуется удалять",
+               description="Тут будет описание параметров метода",
                )
 async def delete_hotel_param_del(db: DBDep,
                                  hotel_location: Annotated[str | None, Query(min_length=3,
@@ -310,12 +414,21 @@ async def delete_hotel_param_del(db: DBDep,
          текста (True), или поиск строк, содержащих заданный текст
          (False или None). Может отсутствовать.
 
-    ***:return:*** Словарь: `{"status": str, "deleted method": str, "deleted": str | dict}`, где:
+        :return: Возвращает словарь:
+            {"deleted hotels": list(dict)},
+            где:
+            - deleted_hotels: Список с удалёнными элементами:
+                  [HotelPydanticSchema(title='title_string_1',
+                                       location='location_string_1', id=16),
+                   HotelPydanticSchema(title='title_string_2',
+                                       location='location_string_2', id=17),
+                   ..., HotelPydanticSchema(title='title_string_N',
+                                            location='location_string_N', id=198)]
+                  Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
 
-    - ***status***: статус операции (реализованы варианты: OK и Error);
-    - ***deleted***: это список выводимых отелей в формате:
-    `list(dict("id": hotel.id, "title": hotel.title, "location": hotel.location))`
-    или информационная строка.
+        Если элементы, соответствующие запросу на удаление в параметре delete_stmt
+        и фильтрам, указанным в **filtering, отсутствуют, возбуждается исключение
+        HTTPException с кодом 404.
 
     Один из двух параметров `hotel_location` или `hotel_title` обязан быть задан.
 
@@ -356,6 +469,7 @@ openapi_examples_dict = {"1": {"summary": "Сочи",
 
 @router.post("",
              summary="Создание записи с новым отелем",
+             description="Тут будет описание параметров метода",
              )
 async def create_hotel_post(db: DBDep,
                             hotel_caption: Annotated[HotelDescriptionRecURL,
@@ -391,6 +505,7 @@ async def create_hotel_post(db: DBDep,
 @router.put("/{hotel_id}",
             summary="Обновление ВСЕХ данных одновременно для выбранной "
                     "записи, выборка происходит по идентификатору отеля",
+            description="Тут будет описание параметров метода",
             )
 async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
                            hotel_caption: Annotated[HotelDescriptionRecURL, Body()],
@@ -434,6 +549,7 @@ async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
 @router.patch("/{hotel_id}",
               summary="Обновление каких-либо данных выборочно или всех данных сразу "
                       "для выбранной записи, выборка происходит по идентификатору отеля",
+              description="Тут будет описание параметров метода",
               )
 # Тут параметр examples переопределяет то, что определено в схеме в параметре
 # examples в классе HotelDescriptionOptURL в файле src\schemas\hotels.py

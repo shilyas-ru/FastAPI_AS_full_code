@@ -80,6 +80,42 @@ class BookingsInfoRecFull(BookingsInfoRecURL):
                        )
 
 
+# Класс определяет даты для поиска отелей/номеров, свободных в эти даты от брони
+class BookingDateParams(BaseModel):
+    date_from: date | None = Field(default=None,
+                                   example='2025-01-20',
+                                   description="Дата, С которой бронируется номер",
+                                   )
+    date_to: date | None = Field(default=None,
+                                 example='2025-01-23',
+                                 description="Дата, ДО которой бронируется номер",
+                                 )
+
+
+# Класс определяет пагинацию, включающую вывод по страницам или вывод всего списка сразу
+class BookingHotelsParams(BookingDateParams):
+    hotels_with_free_rooms: bool | None = Field(default=None,
+                                                alias="hotels-with-free-rooms",
+                                                description="Отели со свободными номерами "
+                                                            "в указанные даты "
+                                                            "(True) или полный список отелей "
+                                                            "не учитывая указанные даты"
+                                                            "(False или None)",
+                                                )
+
+
+# Класс определяет пагинацию, включающую вывод по страницам или вывод всего списка сразу
+class BookingRoomsParams(BookingDateParams):
+    free_rooms: bool | None = Field(default=None,
+                                    alias="free-rooms",
+                                    description="Выбирать свободные (не забронированные) "
+                                                "номера в указанные даты (True) "
+                                                "или выбирать полный список номеров, "
+                                                "не учитывая указанные даты"
+                                                "(False или None)",
+                                    )
+
+
 # Сделано по аналогии с другими схемами: BookingsBase и BookingsPydanticSchema.
 # BookingsPydanticSchema используется в BookingsRepository.
 class BookingsBase(BaseModel):

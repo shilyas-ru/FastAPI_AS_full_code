@@ -1,7 +1,12 @@
-from fastapi import Body, Path, APIRouter
+from datetime import date
+
+from fastapi import Body, Path, APIRouter, Query
 from typing import Annotated
 
-from src.api.dependencies.dependencies import DBDep
+from sqlalchemy import select as sa_select  # Для реализации SQL команды SELECT
+from sqlalchemy import delete as sa_delete  # Для реализации SQL команды DELETE
+
+from src.api.dependencies.dependencies import DBDep, PaginationAllDep, PaginationPagesDep
 
 from src.schemas.rooms import RoomPath, HotelRoomPath, HotelPath
 from src.schemas.rooms import RoomDescriptionRecURL, RoomDescrRecRequest
@@ -27,16 +32,20 @@ from src.schemas.rooms import RoomDescriptionOptURL, RoomDescrOptRequest
     6. Удалять номер
 
 Рабочие ссылки (список методов, параметры в подробном перечне):
-post("/hotels/room") - Создание записи с новой комнатой в отеле.
-        Функция: create_room_post
+get("/hotels/{hotel_id}/rooms/all") - Вывод для конкретного отеля списка 
+        ВСЕХ номеров - весь список полностью.
+        Функция: show_rooms_in_hotel_all_get
 
-get("/hotels/{hotel_id}/rooms") - Вывод списка номеров для конкретного 
-        отеля - весь список полностью.
-        Функция: show_rooms_in_hotel_get
+get("/hotels/{hotel_id}/rooms/free") - Вывод для конкретного отеля списка 
+        СВОБОДНЫХ номеров - весь список полностью.
+        Функция: show_rooms_in_hotel_free_get
 
 get("/hotels/rooms/{room_id}") - Получение из базы данных выбранной 
         записи по идентификатору отеля.
         Функция: get_rooms_id_get
+
+post("/hotels/room") - Создание записи с новой комнатой в отеле.
+        Функция: create_room_post
 
 delete("/hotels/rooms/{room_id}") - Удаление выбранной записи по 
         идентификатору номера.
@@ -53,13 +62,34 @@ delete("/hotels/rooms/") - Удаление выбранной записи по
         Удаление выбранных записей реализовано через метод delete.
         Функция: delete_rooms_del
 
+put("/hotels/{hotel_id}/rooms/{room_id}") - Обновление ВСЕХ данных одновременно 
+        для выбранной записи, выборка происходит по идентификатору номера.
+        Обновление выбранных записей реализовано с использованием метода 
+        session.get(RoomsORM, id) для получения объекта по ключу с последующие
+        изменением нужных полей для полученного элемента.
+        Функция: change_room_hotel_id_put
+
 put("/hotels/rooms/{room_id}") - Обновление ВСЕХ данных одновременно 
         для выбранной записи, выборка происходит по идентификатору номера.
+        При желании можно дополнить обновление нескольких записей по любым 
+        условиям, а не только по id.
+        Обновление выбранных записей реализовано через метод update.
         Функция: change_room_put
+
+patch("/hotels/{hotel_id}/rooms/{room_id}") - Обновление каких-либо данных выборочно 
+        или всех данных сразу для выбранной записи, выборка происходит по 
+        идентификатору номера.
+        Обновление выбранных записей реализовано с использованием метода 
+        session.get(RoomsORM, id) для получения объекта по ключу с последующие
+        изменением нужных полей для полученного элемента.
+        Функция: change_room_hotel_id_patch
 
 patch("/hotels/rooms/{room_id}") - Обновление каких-либо данных выборочно 
         или всех данных сразу для выбранной записи, выборка происходит по 
         идентификатору номера.
+        При желании можно дополнить обновление нескольких записей по любым 
+        условиям, а не только по id.
+        Обновление выбранных записей реализовано через метод update.
         Функция: change_room_patch
 """
 
@@ -89,6 +119,7 @@ openapi_examples_dict = {"1": {"summary": "Номер обычный (укажи
 
 @router.post("/room",
              summary="Создание записи с новой комнатой в отеле",
+             description="Тут будет описание параметров метода",
              )
 async def create_room_post(room_params: Annotated[RoomDescriptionRecURL,
                                                   Body(openapi_examples=openapi_examples_dict)],
@@ -109,17 +140,28 @@ async def create_room_post(room_params: Annotated[RoomDescriptionRecURL,
     """
     # Если нет отеля, имеющего в поле id значение, соответствующее
     # указанному в поле hotel_id, то возникает ошибка:
-    # sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: INSERT или UPDATE в таблице "rooms" нарушает ограничение внешнего ключа "rooms_hotel_id_fkey"
+    # sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError)
+    #       <class 'asyncpg.exceptions.ForeignKeyViolationError'>:
+    #       INSERT или UPDATE в таблице "rooms" нарушает ограничение внешнего ключа
+    #       "rooms_hotel_id_fkey"
     # DETAIL:  Ключ (hotel_id)=(1) отсутствует в таблице "hotels".
-    # [SQL: INSERT INTO rooms (hotel_id, title, description, price, quantity) VALUES ($1::INTEGER, $2::VARCHAR, $3::VARCHAR, $4::INTEGER, $5::INTEGER) RETURNING rooms.id, rooms.hotel_id, rooms.title, rooms.description, rooms.price, rooms.quantity]
+    # [SQL: INSERT INTO rooms (hotel_id, title, description, price, quantity)
+    #   VALUES ($1::INTEGER, $2::VARCHAR, $3::VARCHAR, $4::INTEGER, $5::INTEGER)
+    #   RETURNING rooms.id, rooms.hotel_id, rooms.title,
+    #             rooms.description, rooms.price, rooms.quantity]
     # [parameters: (1, 'Название номера', 'Описание номера', 2, 3)]
     # (Background on this error at: https://sqlalche.me/e/20/gkpj)
 
     # Если не указаны данные для поля, являющегося обязательным (в примере
     # искусственно в поле title установлено значение None), то возникает ошибка:
-    # sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: значение NULL в столбце "title" отношения "rooms" нарушает ограничение NOT NULL
+    # sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError)
+    #       <class 'asyncpg.exceptions.NotNullViolationError'>: значение NULL в столбце "title"
+    #       отношения "rooms" нарушает ограничение NOT NULL
     # DETAIL:  Ошибочная строка содержит (23, 198, null, 198Описание обычного номера, 19811, 19812).
-    # [SQL: INSERT INTO rooms (hotel_id, title, description, price, quantity) VALUES ($1::INTEGER, $2::VARCHAR, $3::VARCHAR, $4::INTEGER, $5::INTEGER) RETURNING rooms.id, rooms.hotel_id, rooms.title, rooms.description, rooms.price, rooms.quantity]
+    # [SQL: INSERT INTO rooms (hotel_id, title, description, price, quantity)
+    #   VALUES ($1::INTEGER, $2::VARCHAR, $3::VARCHAR, $4::INTEGER, $5::INTEGER)
+    #   RETURNING rooms.id, rooms.hotel_id, rooms.title,
+    #             rooms.description, rooms.price, rooms.quantity]
     # [parameters: (198, None, '198Описание обычного номера', 19811, 19812)]
     # (Background on this error at: https://sqlalche.me/e/20/gkpj)
     result = await db.rooms.add(room_params)
@@ -127,17 +169,219 @@ async def create_room_post(room_params: Annotated[RoomDescriptionRecURL,
     return {"create_room": result}
 
 
-@router.get("/{hotel_id}/rooms",
-            summary="Вывод списка номеров для конкретного отеля - весь список полностью",
+@router.get("/{hotel_id}/rooms/all",
+            summary="Вывод для конкретного отеля списка ВСЕХ "
+                    "номеров - весь список полностью",
+            description="Тут будет описание параметров метода",
             )
 # async def show_rooms_in_hotel_get(hotel_id: Path()):
-async def show_rooms_in_hotel_get(hotel_path: Annotated[HotelPath, Path()],
-                                  db: DBDep):
-    return await db.rooms.get_all(hotel_id=hotel_path.hotel_id)
+async def show_rooms_in_hotel_all_get(hotel_path: Annotated[HotelPath, Path()],
+                                      pagination: PaginationAllDep,
+                                      db: DBDep):
+    # return await db.rooms.get_all(hotel_id=hotel_path.hotel_id)
+    return await db.rooms.get_limit(hotel_id=hotel_path.hotel_id,
+                                    per_page=pagination.per_page,
+                                    page=pagination.page,
+                                    show_all=pagination.all_hotels,
+                                    )
+
+
+@router.get("/{hotel_id}/rooms/free",
+            summary="Вывод для конкретного отеля списка СВОБОБНЫХ "
+                    "номеров - весь список полностью",
+            description="Тут будет описание параметров метода",
+            )
+# async def show_rooms_in_hotel_get(hotel_id: Path()):
+async def show_rooms_in_hotel_free_get(hotel_path: Annotated[HotelPath, Path()],
+                                       pagination: PaginationAllDep,
+                                       db: DBDep,
+                                       date_from: Annotated[date | None,
+                                                            Query(example='2025-01-20',
+                                                                  description="Дата, С которой бронируется номер",
+                                                                  )] = None,
+                                       date_to: Annotated[date | None,
+                                                          Query(example='2025-01-23',
+                                                                description="Дата, ДО которой бронируется номер",
+                                                                )] = None
+                                       ):
+    # Параметр date_from - Дата, С которой бронируется номер.
+    # Параметр date_to - Дата, ДО которой бронируется номер.
+    # return await db.rooms.get_filtered_by_time(hotel_id=hotel_path.hotel_id,
+    #                                            per_page=pagination.per_page,
+    #                                            page=pagination.page,
+    #                                            show_all=pagination.all_hotels,
+    #                                            date_from=date_from,
+    #                                            date_to=date_to)
+    return await db.rooms.get_limit(hotel_id=hotel_path.hotel_id,
+                                    per_page=pagination.per_page,
+                                    page=pagination.page,
+                                    show_all=pagination.all_hotels,
+                                    free_rooms=True,
+                                    date_from=date_from,
+                                    date_to=date_to,
+                                    )
+
+
+@router.get("/rooms/find",
+            summary="Поиск отелей по заданным параметрам и "
+                    "вывод итогового списка с разбивкой по страницам",
+            description="Тут будет описание параметров метода",
+            )
+async def find_rooms_get(pagination: PaginationPagesDep,
+                         db: DBDep,
+                         title: Annotated[str | None, Query(min_length=3,
+                                                            description="Наименование номера"
+                                                            )] = None,
+                         description: Annotated[str | None, Query(min_length=3,
+                                                                  description="Описание номера",
+                                                                  )] = None,
+                         case_sensitivity: Annotated[bool | None,
+                                                     Query(alias="case-sensitivity",
+                                                           description="Поиск с учётом регистра "
+                                                                       "(True) или регистронезависимый "
+                                                                       "(False или None)",
+                                                           )] = None,
+                         starts_with: Annotated[bool | None,
+                                                Query(alias="starts-with",
+                                                      description="Поиск строк, начинающихся с "
+                                                                  "заданного текста (True), или "
+                                                                  "поиск строк, содержащих "
+                                                                  "заданный текст (False или None)",
+                                                      )] = None,
+                         price_min: Annotated[int | None, Query(alias="price-min",
+                                                                ge=0,
+                                                                description="Минимальная цена номера",
+                                                                )] = None,
+                         price_max: Annotated[int | None, Query(alias="price-max",
+                                                                ge=0,
+                                                                description="Максимальная цена номера",
+                                                                )] = None,
+                         free_rooms: Annotated[bool | None,
+                                               Query(alias="free-rooms",
+                                                     description="Выбирать свободные (не забронированные) "
+                                                                 "номера в указанные даты (True) "
+                                                                 "или выбирать полный список номеров, "
+                                                                 "не учитывая указанные даты"
+                                                                 "(False или None)",
+                                                     )] = None,
+                         # date_from: date = Query(example='2025-01-20',
+                         #                         description="Дата, С которой бронируется номер",
+                         #                         default=None),
+                         # date_to: date = Query(example='2025-01-23',
+                         #                       description="Дата, ДО которой бронируется номер",
+                         #                       default=None),
+                         date_from: Annotated[date | None,
+                                              Query(example='2025-01-20',
+                                                    description="Дата, С которой бронируется номер",
+                                                    )] = None,
+                         date_to: Annotated[date | None,
+                                            Query(example='2025-01-23',
+                                                  description="Дата, ДО которой бронируется номер",
+                                                  )] = None
+                         ):
+    """
+    ## Функция ищет отели по заданным параметрам и выводит информацию о найденных отелях с разбивкой по страницам.
+
+    Параметры:
+    - ***:param** db:* Контекстный менеджер.
+
+    Параметры (передаются методом Query):
+    - ***:param** title:* Наименование номера (может отсутствовать).
+    - ***:param** description:* Описание номера (может отсутствовать).
+    - ***:param** case_sensitivity:* Поиск с учётом регистра (True) или
+                регистронезависимый (False или None). Может отсутствовать.
+    - ***:param** starts_with:* Поиск строк, начинающихся с заданного
+                текста (True), или поиск строк, содержащих заданный текст
+                (False или None). Может отсутствовать.
+    - ***:param** page:* Номер страницы для вывода (должно быть >=1,
+                по умолчанию значение 1).
+    - ***:param** per_page:* Количество элементов на странице (должно быть
+                >=1 и <=30, по умолчанию значение 3).
+    - ***:param** price_min:* Минимальная цена номера (должно быть >=0,
+                по умолчанию значение не задано - None). Может отсутствовать.
+    - ***:param** price_max:* Максимальная цена номера (должно быть >=0,
+                по умолчанию значение не задано - None). Может отсутствовать.
+    - ***:param** free_rooms:* Выбирать свободные (не забронированные) номера
+                в указанные даты (True) или выбирать полный список номеров,
+                не учитывая указанные даты (False или None).
+                Может отсутствовать.
+    - ***:param** date_from:* Дата, С которой бронируется номер.
+            Используется, если параметр hotels_with_free_rooms=True.
+    - ***:param** date_to:* Дата, ДО которой бронируется номер.
+            Используется, если параметр hotels_with_free_rooms=True.
+
+    ***:return:*** Список отелей или строка с уведомлением, если список отель пуст.
+
+    Один из двух параметров `title` или `description` обязан быть задан.
+
+    Если переданы оба параметра `title` и `description`, то
+    выбираться будет номер, соответствующий обоим параметрам одновременно.
+
+    Указание цены (price_min и/или price_max) ограничивает вывод для ранее произведённого
+    поиска по параметрам `title` и/или `description`.
+    Только цену для поиска задавать пока нельзя, обязательно указывать один из двух
+    параметров `title` или `description`.
+
+    Значения `case_sensitivity` и `starts_with` влияют на поиск по обоим
+    параметрам `title` и `description`.
+
+    Список номеров выводится в виде:
+    list(info: list(str, str),
+         list(dict(room_item: RoomItem) | str)),
+    где:
+    - ***info***, это информация, какая страница выводится и сколько элементов на странице;
+    - ***list(dict(room_item: RoomItem) | str)***, это список выводимых отелей или строка,
+    что "Данные отсутствуют".
+    Список номеров выводится в виде:
+            [RoomPydanticSchema(hotel_id=26, title='title_string_1',
+                                description='description_string_1',
+                                price=1, quantity=1, id=32),
+             RoomPydanticSchema(hotel_id=21, title='title_string_2',
+                                description='description_string_2',
+                                price=1, quantity=1, id=34),
+             ..., RoomPydanticSchema(hotel_id=21, title='title_string_N',
+                                     description='description_string_N',
+                                     price=1, quantity=1, id=38)]
+             Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+    """
+
+    query = await db.rooms.create_stmt_for_selection(sql_func=sa_select,
+                                                     title={"search_string": title,
+                                                            "case_sensitivity": case_sensitivity,
+                                                            "starts_with": starts_with},
+                                                     description={"search_string": description,
+                                                                  "case_sensitivity": case_sensitivity,
+                                                                  "starts_with": starts_with},
+                                                     order_by=True,
+                                                     )
+    # if hotels_with_free_rooms:
+    #     # Выбирать отели со свободными номерами в указанные даты (True)
+    #     if not (date_from and date_to):
+    #         # status_code=422: Запрос сформирован правильно, но его невозможно
+    #         #                  выполнить из-за семантических ошибок
+    #         #                  Unprocessable Content (WebDAV)
+    #         raise HTTPException(status_code=422,
+    #                             detail={"description": "Не заданы даты для выбора "
+    #                                                    "отелей со свободными номерами",
+    #                                     })
+    # else:
+    #     date_from = None,
+    #     date_to = None
+
+    return await db.rooms.get_limit(query=query,
+                                    per_page=pagination.per_page,
+                                    page=pagination.page,
+                                    free_rooms=free_rooms,
+                                    date_from=date_from,
+                                    date_to=date_to,
+                                    price_min=price_min,
+                                    price_max=price_max,
+                                    )
 
 
 @router.get("/rooms/{room_id}",
             summary="Получение из базы данных выбранной записи по идентификатору отеля",
+            description="Тут будет описание параметров метода",
             )
 async def get_rooms_id_get(room: Annotated[RoomPath, Path()], db: DBDep):
     """
@@ -163,6 +407,7 @@ async def get_rooms_id_get(room: Annotated[RoomPath, Path()], db: DBDep):
 
 @router.delete("/rooms/{room_id}",
                summary="Удаление выбранной записи по идентификатору номера",
+               description="Тут будет описание параметров метода",
                )
 # async def delete_hotel_id_del(hotel: Annotated[HotelPath, Path()]):
 async def delete_room_id_del(room: Annotated[RoomPath, Path()], db: DBDep):
@@ -190,30 +435,87 @@ async def delete_room_id_del(room: Annotated[RoomPath, Path()], db: DBDep):
 
 
 @router.delete("/rooms/",
-               summary="Удаление выбранной записи по идентификатору номера",
+               summary="Удаление выбранных записей с выборкой по наименованию "
+                       "и описанию номера - что требуется удалять",
+               description="Тут будет описание параметров метода",
                )
 # async def delete_hotel_id_del(hotel: Annotated[HotelPath, Path()]):
-async def delete_rooms_del(room: Annotated[RoomPath, Path()], db: DBDep):
+async def delete_rooms_param_del(db: DBDep,
+                                 title: Annotated[str | None, Query(min_length=3,
+                                                                    description="Наименование номера"
+                                                                    )] = None,
+                                 description: Annotated[str | None, Query(min_length=3,
+                                                                          description="Описание номера",
+                                                                          )] = None,
+                                 case_sensitivity: Annotated[bool | None,
+                                                             Query(alias="case-sensitivity",
+                                                                   description="Поиск с учётом регистра "
+                                                                               "(True) или регистронезависимый "
+                                                                               "(False или None)",
+                                                                   )] = None,
+                                 starts_with: Annotated[bool | None,
+                                                        Query(alias="starts-with",
+                                                              description="Поиск строк, начинающихся с "
+                                                                          "заданного текста (True), или "
+                                                                          "поиск строк, содержащих "
+                                                                          "заданный текст (False или None)",
+                                                              )] = None,
+                                 ):
     """
-    ## Функция удаляет выбранную запись.
+    ## Функция удаляет выбранную запись или записи с выборкой, что удалять, по наименованию и описанию номера.
 
-    Параметры (передаются в URL):
-    - ***:param** hotel_id:* Идентификатор отеля (обязательно).
+    Параметры:
+    - ***:param** db:* Контекстный менеджер.
 
-    ***:return:*** Словарь: `{"status": str, "deleted": str | dict}`, где:
+    Параметры (передаются методом Query):
+    - ***:param** title:* Наименование номера (может отсутствовать).
+    - ***:param** description:* Описание номера (может отсутствовать).
+    - ***:param** case_sensitivity:* Поиск с учётом регистра (True) или
+                регистронезависимый (False или None). Может отсутствовать.
+    - ***:param** starts_with:* Поиск строк, начинающихся с заданного
+                текста (True), или поиск строк, содержащих заданный текст
+                (False или None). Может отсутствовать.
 
-    - ***status***: статус операции (реализованы варианты: OK и Error);
-    - ***deleted***: это список выводимых отелей в формате:
-    `list(dict("id": hotel.id, "title": hotel.title, "location": hotel.location))`
-    или информационная строка.
+        :return: Возвращает словарь:
+            {"deleted rooms": list(dict)},
+            где:
+            - deleted_hotels: Список с удалёнными элементами:
+                  [RoomPydanticSchema(hotel_id=26, title='title_string_1',
+                                      description='description_string_1',
+                                      price=1, quantity=1, id=32),
+                   RoomPydanticSchema(hotel_id=21, title='title_string_2',
+                                      description='description_string_2',
+                                      price=1, quantity=1, id=34),
+                   ..., RoomPydanticSchema(hotel_id=21, title='title_string_N',
+                                           description='description_string_N',
+                                           price=1, quantity=1, id=38)]
+                  Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
 
-    В текущей реализации статус завершения операции всегда один и тот же: OK
+        Если элементы, соответствующие запросу на удаление в параметре delete_stmt
+        и фильтрам, указанным в **filtering, отсутствуют, возбуждается исключение
+        HTTPException с кодом 404.
 
-    Если работать с БД, то добавятся новые статусы.
+    Один из двух параметров `title` или `description` обязан быть задан.
+
+    Значения `case_sensitivity` и `starts_with` влияют на поиск по обоим
+    параметрам `title` и `description`.
+
+    Если переданы оба параметра `title` и `description`, то
+    выбираться будет номер, соответствующий обоим параметрам одновременно.
     """
 
-    result = await db.rooms.delete(id=room.room_id)
+    stmt = await db.rooms.create_stmt_for_selection(sql_func=sa_delete,
+                                                    title={"search_string": title,
+                                                           "case_sensitivity": case_sensitivity,
+                                                           "starts_with": starts_with},
+                                                    description={"search_string": description,
+                                                                 "case_sensitivity": case_sensitivity,
+                                                                 "starts_with": starts_with},
+                                                    )
+
+    result = await db.rooms.delete(delete_stmt=stmt)
     await db.commit()  # Подтверждаем изменение
+    print(result)
     return result
 
 
@@ -229,30 +531,31 @@ change_room_examples_lst = [{"hotel_id": 1,  # int, Идентификатор �
 @router.put("/{hotel_id}/rooms/{room_id}",
             summary="Обновление ВСЕХ данных одновременно для выбранной "
                     "записи, выборка происходит по идентификатору номера",
+            description="Тут будет описание параметров метода",
             )
 # async def change_room_hotel_id_put(hotel: Annotated[HotelPath, Path()],
 #                                    room: Annotated[RoomPath, Path()],
 #                                    room_params: Annotated[RoomDescrRecRequest,
 #                                                           Body()],
 #                                    ):
-async def change_room_hotel_id_put(hotelroom: Annotated[HotelRoomPath, Path()],
+async def change_room_hotel_id_put(hotel_room: Annotated[HotelRoomPath, Path()],
                                    room_params: Annotated[RoomDescrRecRequest,
                                                           Body()],
                                    db: DBDep,
                                    ):
-    _room_params = RoomDescriptionRecURL(hotel_id=hotelroom.hotel_id,
+    _room_params = RoomDescriptionRecURL(hotel_id=hotel_room.hotel_id,
                                          **room_params.model_dump())
 
     # result = await db.rooms.edit(edited_data=_room_params,
-    #                              id=hotelroom.room_id)
+    #                              id=hotel_room.room_id)
     result = await db.rooms.edit_id(edited_data=_room_params,
-                                    room_id=hotelroom.room_id)
+                                    room_id=hotel_room.room_id)
     await db.commit()  # Подтверждаем изменение
     # Вариант вместо блока async with async_session_maker() as session:
     # то есть, обращаемся к уже написанной функции change_room_put.
     # Этот вариант может быть хорош, если функция делает какую-то
     # дополнительную обработку.
-    # room = RoomPath(room_id=hotelroom.room_id)
+    # room = RoomPath(room_id=hotel_room.room_id)
     # result = await change_room_put(room=room, room_params=_room_params)
     return result
 
@@ -260,6 +563,7 @@ async def change_room_hotel_id_put(hotelroom: Annotated[HotelRoomPath, Path()],
 @router.put("/rooms/{room_id}",
             summary="Обновление ВСЕХ данных одновременно для выбранной "
                     "записи, выборка происходит по идентификатору номера",
+            description="Тут будет описание параметров метода",
             )
 async def change_room_put(room: Annotated[RoomPath, Path()],
                           room_params: Annotated[RoomDescriptionRecURL,
@@ -318,30 +622,31 @@ change_room_examples_lst = [{"hotel_id": 1,  # int, Идентификатор �
 @router.patch("/{hotel_id}/rooms/{room_id}",
               summary="Обновление каких-либо данных выборочно или всех данных сразу "
                       "для выбранной записи, выборка происходит по идентификатору номера",
+              description="Тут будет описание параметров метода",
               )
 # async def change_room_hotel_id_patch(room: Annotated[RoomPath, Path(examples=[{"hotel_id": 1}])],
 #                                      room_params: Annotated[RoomDescriptionOptURL,
 #                                                             Body()],
 #                                      ):
-async def change_room_hotel_id_patch(hotelroom: Annotated[HotelRoomPath, Path()],
+async def change_room_hotel_id_patch(hotel_room: Annotated[HotelRoomPath, Path()],
                                      room_params: Annotated[RoomDescrOptRequest,
                                                             Body()],
                                      db: DBDep,
                                      ):
-    _room_params = RoomDescriptionOptURL(hotel_id=hotelroom.hotel_id,
+    _room_params = RoomDescriptionOptURL(hotel_id=hotel_room.hotel_id,
                                          **room_params.model_dump(exclude_unset=True))
     # result = await db.rooms.edit(edited_data=_room_params,
-    #                              id=hotelroom.room_id,
+    #                              id=hotel_room.room_id,
     #                              exclude_unset=True)
     result = await db.rooms.edit_id(edited_data=_room_params,
-                                    room_id=hotelroom.room_id,
+                                    room_id=hotel_room.room_id,
                                     exclude_unset=True)
     await db.commit()  # Подтверждаем изменение
     # Вариант вместо блока async with async_session_maker() as session:
     # то есть, обращаемся к уже написанной функции change_room_put.
     # Этот вариант может быть хорош, если функция делает какую-то
     # дополнительную обработку.
-    # room = RoomPath(room_id=hotelroom.room_id)
+    # room = RoomPath(room_id=hotel_room.room_id)
     # result = await change_room_patch(room=room, room_params=_room_params)
     return result
 
@@ -349,6 +654,7 @@ async def change_room_hotel_id_patch(hotelroom: Annotated[HotelRoomPath, Path()]
 @router.patch("/rooms/{room_id}",
               summary="Обновление каких-либо данных выборочно или всех данных сразу "
                       "для выбранной записи, выборка происходит по идентификатору номера",
+              description="Тут будет описание параметров метода",
               )
 async def change_room_patch(room: Annotated[RoomPath, Path(examples=[{"hotel_id": 1}])],
                             room_params: Annotated[RoomDescriptionOptURL,
