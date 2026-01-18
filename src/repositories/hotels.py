@@ -1,12 +1,13 @@
 from typing import Union
 
 from pydantic import BaseModel
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func
 from sqlalchemy.exc import MultipleResultsFound
 
 from src.api.dependencies.dependencies import pagination_pages
 from src.repositories.base import BaseRepository, BaseRepositoryMyCode
 from src.models.hotels import HotelsORM
+from src.schemas.hotels import HotelPydanticSchema
 
 
 # HotelsRepositoryLesson - код репозитария из урока.
@@ -40,20 +41,28 @@ class HotelsRepositoryLesson:
 # HotelsRepositoryMyCode - мой код репозитария.
 # В уроке назывался class HotelsRepository:
 class HotelsRepositoryMyCode(BaseRepositoryMyCode):
+    model = HotelsORM
+    schema = HotelPydanticSchema
 
-    def __init__(self, session):
-        super().__init__(session, HotelsORM)
+    # # См. пояснение перед созданием класса BaseRepositoryMyCode
+    # def __init__(self, session):
+    #     super().__init__(session, HotelsORM)
 
     async def get_all(self):
         """
         Метод класса. Выбирает все строки. Использует родительский метод get_rows.
-        Возвращает список из выбранных строк или пустой список: []
+        Возвращает пустой список: [] или список из выбранных строк:
+        [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+         HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+         ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+        Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
         result = await super().get_rows(show_all=True)
-        # Возвращает пустой список: [] или
-        # [<src.models.hotels.HotelsORM object at 0x0000017FDD7C7810>,
-        #  <src.models.hotels.HotelsORM object at 0x0000017FDD667C50>,
-        #  ..., <src.models.hotels.HotelsORM object at 0x0000017FDD7C7890>]
+        # Возвращает пустой список: [] или список:
+        # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+        #  HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+        #  ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+        # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         status = ("Полный список отелей.",
                   f"Всего выводится {len(result)} элемент(-а/-ов) на странице.")
         # if len(result) == 0:
@@ -63,6 +72,7 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         return status, ("Данные отсутствуют." if len(result) == 0 else result)
 
     async def get_limit(self,
+                        query=None,
                         title=None,
                         location=None,
                         per_page=pagination_pages["per_page"],
@@ -72,20 +82,25 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         Метод класса. Выбирает заданное количество строк с
         заданным смещением. Использует родительский метод get_rows.
 
+        :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
+            то он формируется внутри метода. В качестве значений могут
+            приходить запросы, связанные с разными фильтрами.
         :param title: Наименование отеля
         :param location: Адрес отеля
         :param per_page: Количество элементов на странице (должно быть >=1 и <=30, по умолчанию значение 3).
         :param page: Номер страницы для вывода (должно быть >=1, по умолчанию значение 1).
-        :return:
-        # Возвращает пустой список: [] или
-        # [<src.models.hotels.HotelsORM object at 0x0000017FDD7C7810>,
-        #  <src.models.hotels.HotelsORM object at 0x0000017FDD667C50>,
-        #  ..., <src.models.hotels.HotelsORM object at 0x0000017FDD7C7890>]
+        :return: Возвращает пустой список: [] или список:
+            [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+             HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+             ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+            Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
         # """
         # Возвращает список из выбранных строк или пустой список: []
         # """
-        query = select(self.model)
+        if query is None:
+            query = select(self.model)
+
         if title:
             query = query.filter(func.lower(self.model.title)
                                  .contains(title.strip().lower()))
@@ -96,12 +111,13 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
                                         limit=per_page,
                                         offset=((page - 1) * per_page)
                                         )
-        # Возвращает пустой список: [] или
-        # [<src.models.hotels.HotelsORM object at 0x0000017FDD7C7810>,
-        #  <src.models.hotels.HotelsORM object at 0x0000017FDD667C50>,
-        #  ..., <src.models.hotels.HotelsORM object at 0x0000017FDD7C7890>]
-        status = (f'Страница {pagination_pages["page"]}, установлено отображение '
-                  f'{pagination_pages["per_page"]} элемент(-а/-ов) на странице.',
+        # Возвращает пустой список: [] или список:
+        # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+        #  HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+        #  ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+        # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+        status = (f'Страница {page}, установлено отображение '
+                  f'{per_page} элемент(-а/-ов) на странице.',
                   f"Всего выводится {len(result)} элемент(-а/-ов) на странице.")
         # if len(result) == 0:
         #     function_output = (status, f"Данные отсутствуют.")
@@ -109,16 +125,33 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         #     function_output = (status, result)
         return status, ("Данные отсутствуют." if len(result) == 0 else result)
 
-    async def get_one_or_none(self,
-                              title=None,
-                              location=None,
-                              ):
+    async def get_one_or_none_my_err(self,
+                                     query=None,
+                                     title=None,
+                                     location=None,
+                                     ):
         """
         Метод класса. Возвращает одну строку или None. Если получено более
         одной строки, то поднимается исключение MultipleResultsFound.
         Использует родительский метод get_rows.
+
+        :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
+            то он формируется внутри метода. В качестве значений могут
+            приходить запросы, связанные с разными фильтрами.
+        :param title: Наименование отеля.
+        :param location: Адрес отеля.
+
+        :return: Возвращает первую строку результата или None если результатов нет,
+            или вызывает исключение если есть более одного результата.
+            - список, содержащий один элемент, преобразованный к схеме Pydantic (self.schema):
+              [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16)]
+            - ошибку MultipleResultsFound, если более одного результата.
+            - None если результатов нет.
+        Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
-        query = select(self.model)
+        if query is None:
+            query = select(self.model)
+
         if title:
             query = query.filter(func.lower(HotelsORM.title)
                                  .contains(title.strip().lower()))
@@ -126,20 +159,23 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
             query = query.filter(func.lower(HotelsORM.location)
                                  .contains(location.strip().lower()))
         result = await super().get_rows(query=query, limit=2, offset=0)
-        # Возвращает пустой список: [] или
-        # [<src.models.hotels.HotelsORM object at 0x000001A9C4DF4090>]
+        # Возвращает пустой список: [] или список:
+        # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16]
+        # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         # В случае, если возвращается два экземпляра:
-        # [<src.models.hotels.HotelsORM object at 0x000001A9C4DF4090>,
-        #  <src.models.hotels.HotelsORM object at 0x000001A9C4DF4090>]
-        # то требуется поднять ошибку MultipleResultsFound.
-        # Так написано в документации: method sqlalchemy.engine.Result.one_or_none()
+        # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16,
+        #  HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17)]
+        # то требуется поднять ошибку sqlalchemy.orm.exc.MultipleResultsFound.
+        # Так написано в документации:
+        # - method sqlalchemy.engine.Result.one_or_none() → Row[_TP] | None¶
         # https://docs.sqlalchemy.org/en/20/core/connections.html#sqlalchemy.engine.Result.one_or_none
+        # -  method sqlalchemy.orm.Query.one_or_none() → _T | None¶
+        # https://docs.sqlalchemy.org/en/20/orm/queryguide/query.html#sqlalchemy.orm.Query.one_or_none
 
         if len(result) > 1:
             raise MultipleResultsFound
         return result if result else None
         # return result.scalars().one_or_none()
-
 
     # async def add(self, added_data: BaseModel, **kwargs):
     #     """
@@ -157,6 +193,7 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
 
     async def edit(self,
                    edited_data: BaseModel,
+                   edit_stmt=None,
                    exclude_unset: bool = False,
                    **filtering):  # -> None:
         """
@@ -164,10 +201,15 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         update. Служит обёрткой для родительского метода edit.
 
         :param edited_data: Новые значения для внесения в выбранную запись.
+        :param edit_stmt: SQL-Запрос на редактирование. Если простой UPDATE-запрос на
+            редактирование, то он формируется внутри метода. В качестве значений могут
+            приходить запросы, связанные с разными фильтрами.
         :param exclude_unset: Редактировать все поля модели (True) или
                редактировать только те поля, которым явно присвоено значением
                (даже если присвоили None).
-        :param filtering: Значения фильтра для выбирания объекта.
+        :param filtering: Значения фильтра для выборки объекта. Используется
+            фильтр только на точное равенство: filter_by(**filtering), который
+            преобразуется в конструкцию (для примера): WHERE hotels.id = 188
 
         :return: Возвращает словарь:
                 {"status": status, "err_type": err_type, "updated rows": updated_rows},
@@ -180,51 +222,46 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
                 - updated_rows. Список, содержащий отредактированный объект. Выводится
                   в виде списка, содержащего элементы объекта HotelsORM.
         """
-        result = await super().edit(edited_data, exclude_unset, **filtering)
-        # Если используется .returning(...), то тогда количество строк находится в:
-        #   updated_rows = result.raw.rowcount
-        # Если не используется .returning(...), то тогда количество строк находится в:
-        #   updated_rows = result.rowcount
-        updated_rows = result.raw.rowcount
-        if updated_rows == 0:
+        result = await super().edit(edited_data, edit_stmt, exclude_unset, **filtering)
+        if len(result) == 0:
             status = f"Для отеля с идентификатором {filtering['id']} ничего не найдено"
             err_type = 1
             return {"status": status, "err_type": err_type, "updated rows": None}
         status = "OK"
         err_type = 0
-        return {"status": status, "err_type": err_type, "updated rows": result.scalars().all()}
+        return {"status": status, "err_type": err_type, "updated rows": result}
 
-    async def delete(self, **filtering):  # -> None:
+    async def delete(self, delete_stmt=None, **filtering):  # -> None:
         """
-        Метод класса. Удаляет один объект в базе, используя метод
+        Метод класса. Удаляет объект или объекты в базе, используя метод
         delete.
 
-        :param filtering: Значения фильтра для выбирания объекта.
+        :param delete_stmt: SQL-Запрос. Если простой SELECT-запрос на выборку,
+            то он формируется внутри метода. В качестве значений могут
+            приходить запросы, связанные с разными фильтрами.
+        :param filtering: Значения фильтра для выборки объекта. Используется
+            фильтр только на точное равенство: filter_by(**filtering), который
+            преобразуется в конструкцию (для примера): WHERE hotels.id = 188
         :return: Возвращает словарь:
-                {"status": str, "err_type": int, "deleted rows": list(dict | [])},
-                где:
-                - status: . Текстовое описание результата операции.
-                - err_type: . Код результата операции.
-                  Принимает значения:
-                  - 0 (OK - выполнено нормально, без ошибок).
-                  - 1 (Для объекта с указанным идентификатором ничего не найдено).
-                - deleted_rows: Список, содержащий удалённый объект. Выводится
-                  в виде списка, содержащего элементы объекта HotelsORM. Если
-                  не найдены объекты для удаления, выводится None (null).
+            {"status": str, "err_type": int, "deleted rows": list(dict | [])},
+            где:
+            - status: . Текстовое описание результата операции.
+            - err_type: . Код результата операции.
+              Принимает значения:
+              - 0 (OK - выполнено нормально, без ошибок).
+              - 1 (Для объекта с указанным идентификатором ничего не найдено).
+            - deleted_rows: Список, содержащий удалённый объект. Выводится
+              в виде списка, содержащего элементы объекта HotelsORM. Если
+              не найдены объекты для удаления, выводится None (null).
         """
-        result = await super().delete(**filtering)
-        # Если используется .returning(...), то тогда количество строк находится в:
-        #   updated_rows = result.raw.rowcount
-        # Если не используется .returning(...), то тогда количество строк находится в:
-        #   updated_rows = result.rowcount
-        deleted_rows = result.raw.rowcount
-        if deleted_rows == 0:
-            status = f"Для отеля с идентификатором {filtering['id']} ничего не найдено"
+        result = await super().delete(delete_stmt, **filtering)
+        if len(result) == 0:
+            status = f"Не найден(ы) отель (отели) для удаления"
             err_type = 1
             return {"status": status, "err_type": err_type, "deleted rows": None}
         status = "OK"
         err_type = 0
-        return {"status": status, "err_type": err_type, "deleted rows": result.scalars().all()}
+        return {"status": status, "err_type": err_type, "deleted rows": result}
 
     async def get_id(self, object_id: Union[int | None] = None):  # -> None:
         """
@@ -251,8 +288,12 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
             err_type = 2
             return {"status": status, "err_type": err_type, "got row": None}
 
-        result = await self.session.get(self.model, object_id)
-        # result = <src.models.hotels.HotelsORM object at 0x00000277F9D5BD50>
+        # result = await self.session.get(self.model, object_id)
+        result = await super().get_id(object_id)
+        # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
+        # Возвращает пустой список: [] или объект:
+        # HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16)
+        # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         if not result:
             status = f"Для отеля с идентификатором {object_id} ничего не найдено"
             err_type = 1

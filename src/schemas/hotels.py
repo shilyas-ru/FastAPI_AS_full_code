@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # Pydantic 2: Полное руководство для Python-разработчиков — от основ до продвинутых техник
 # https://fastapi.qubitpi.org/reference/fastapi/?h=tags_metadata#fastapi.FastAPI--example
@@ -9,16 +9,16 @@ from pydantic import BaseModel, Field
 
 
 hotel = {"title": "Название отеля",
-         "location": "Местонахождение отеля",
+         "location": "Местонахождение (адрес) отеля",
          }
 
 hotel_examples = {"title": "Название отеля",
-                  "location": "Местонахождение отеля",
+                  "location": "Местонахождение (адрес) отеля",
                   }
 
 """
 Можно было бы описать один класс так:
-class HotelCaption(BaseModel):
+class HotelDescription(BaseModel):
     hotel_title: str | None = Field(description=hotel["title"],
                                     min_length=3,
                                     )
@@ -33,7 +33,7 @@ class HotelCaption(BaseModel):
               summary="Обновление каких-либо данных выборочно или всех данных сразу",
               )
 def hotel_patch(hotel_path: Annotated[HotelPath, Path()],
-                hotel_caption: Annotated[HotelCaption, Body()] = HotelCaption(hotel_title=None,
+                hotel_caption: Annotated[HotelDescription, Body()] = HotelDescription(hotel_title=None,
                                                                               hotel_name=None),
                 ):
 
@@ -57,7 +57,7 @@ class HotelPath(BaseModel):
                           )
 
 
-class HotelCaptionRec(BaseModel):
+class HotelDescriptionRecURL(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # hotels (класс HotelsORM в файле src\models\hotels.py).
     title: str = Field(description=hotel["title"],
@@ -70,7 +70,7 @@ class HotelCaptionRec(BaseModel):
                           )
 
 
-class HotelCaptionOpt(BaseModel):
+class HotelDescriptionOptURL(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # hotels (класс HotelsORM в файле src\models\hotels.py).
     title: str | None = Field(default=None,
@@ -83,3 +83,19 @@ class HotelCaptionOpt(BaseModel):
                                  max_length=50,
                                  examples=[hotel_examples["location"]],
                                  )
+
+
+class HotelBase(BaseModel):
+    # Поля указываем такие же, как именованы колонки в таблице
+    # hotels (класс HotelsORM в файле src\models\hotels.py).
+    title: str | None = Field(default=None)
+    location: str | None = Field(default=None)
+
+
+class HotelPydanticSchema(HotelBase):
+    # Эта схема должна иметь такие же поля, как указаны в схеме
+    # для отелей - hotels (класс HotelsORM в файле src\models\hotels.py).
+    # Поля title и location наследуем от родителя.
+    id: int = Field()
+
+    model_config = ConfigDict(from_attributes=True)

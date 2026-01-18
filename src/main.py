@@ -17,16 +17,13 @@ from src.api.routers.hotels import router as router_hotels
 # print(f"{settings.DB_URL = }")
 
 """
-## Задание №7: Ручка на получение отеля
-Необходимо создать ручку для получения конкретного отеля 
-GET /hotels/{hotel_id}, которая будет вызывать соответствующий 
-метод репозитория и отдавать в ответе данные отеля.
+## Применение паттерна DataMapper
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Задание №7: Ручка на получение отеля",  # short summary of the API
-    "version": "ver. 0.7.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Изменение кода: Применение паттерна DataMapper",  # short summary of the API
+    "version": "ver. 0.7.1",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
