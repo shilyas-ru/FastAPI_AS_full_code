@@ -1,4 +1,5 @@
-from sqlalchemy import select, insert
+from sqlalchemy import select, insert, update, delete
+from pydantic import BaseModel
 
 from src.api.dependencies.dependencies import pagination_pages
 from src.database import engine
@@ -22,6 +23,11 @@ class BaseRepositoryLesson:
         result = await self.session.execute(query)
         return result.scalars().one_or_none()
 
+    async def add(self, data: BaseModel):
+        add_data_stmt = insert(self.model).values(**data.model_dump()).returning(self.model)
+        result = await self.session.execute(add_data_stmt)
+        return result.scalars().one()
+
 
 # BaseRepositoryMyCode - мой код репозитария.
 # В уроке назывался class BaseRepository:
@@ -37,39 +43,88 @@ class BaseRepositoryMyCode:
                        offset=(pagination_pages["page"] - 1) * pagination_pages["per_page"],
                        limit=pagination_pages["per_page"],
                        show_all=None,
+                       order_by=True,
                        **kwargs):
         """
         Выбирает заданное количество строк с заданным смещением.
-        Возвращает список из выбранных строк или пустой список6 []
+        Возвращает список из выбранных строк или пустой список: []
         """
         if query is None:
             query = select(self.model)
+
         if not show_all:
             query = query.limit(limit).offset(offset)
+
+        if order_by:
+            query = query.order_by(self.model.id)
+
         result = await self.session.execute(query)
         return result.scalars().all()
 
-    async def add_item_insert(self, **kwargs):
+    async def add(self, added_data: BaseModel, **kwargs):
         """
         Метод класса. Добавляет один объект в базу, используя метод
         insert.
-        Возвращает номер добавленного объекта.
+
+        Возвращает добавленный объект.
         """
-        add_stmt = insert(self.model).returning(self.model.id).values(**kwargs)
+        add_stmt = (insert(self.model)
+                    .returning(self.model)
+                    .values(**added_data.model_dump()
+                            )
+                    )
         result = await self.session.execute(add_stmt)
+        f = result
+        print(f)
         return result.scalars().all()
 
-    async def add_item(self, **kwargs):
+    async def edit(self, edited_data: BaseModel, **filtering):  # -> None:
         """
-        Метод класса. Добавляет один объект в базу, используя метод
-        session.add.
-        Возвращает добавленный объект.
-        После выполнения session.commit() возвращённый объект
-        записывается в базу данных и получает значение в поле id.
+        Метод класса. Редактирует один объект в базе, используя метод
+        update.
+
+        Возвращает отредактированный объект.
         """
-        new_item = self.model(**kwargs)
-        self.session.add(new_item)
-        return new_item
+        edit_stmt = (update(self.model)
+                     .filter_by(**filtering)
+                     .values(**edited_data.model_dump())
+                     .returning(self.model)
+                     )
+        # print(edit_stmt.compile(compile_kwargs={"literal_binds": True}))
+        # UPDATE hotels SET title='New_string', location='New_string' WHERE hotels.id = 188 RETURNING hotels.id, hotels.title, hotels.location
+
+        result = await self.session.execute(edit_stmt)
+        # Если используется .returning(...), то тогда количество строк находится в:
+        #   updated_rows = result.raw.rowcount
+        # Если не используется .returning(...), то тогда количество строк находится в:
+        #   updated_rows = result.rowcount
+        updated_rows = result.raw.rowcount
+        if updated_rows == 0:
+            status = f"Для объекта с идентификатором {filtering['id']} ничего не найдено"
+            err_type = 1
+            return {"status": status, "err_type": err_type, "updated rows": None}
+        status = "OK"
+        err_type = 0
+        return {"status": status, "err_type": err_type, "updated rows": result.scalars().all()}
+
+    async def delete(self, **filtering):  # -> None:
+        delete_stmt = delete(self.model).filter_by(**filtering).returning(self.model)
+        # print(delete_stmt.compile(compile_kwargs={"literal_binds": True}))
+        # DELETE FROM hotels WHERE hotels.id = 188 RETURNING hotels.id, hotels.title, hotels.location
+
+        result = await self.session.execute(delete_stmt)
+        # Если используется .returning(...), то тогда количество строк находится в:
+        #   updated_rows = result.raw.rowcount
+        # Если не используется .returning(...), то тогда количество строк находится в:
+        #   updated_rows = result.rowcount
+        deleted_rows = result.raw.rowcount
+        if deleted_rows == 0:
+            status = f"Для объекта с идентификатором {filtering['id']} ничего не найдено"
+            err_type = 1
+            return {"status": status, "err_type": err_type, "deleted rows": None}
+        status = "OK"
+        err_type = 0
+        return {"status": status, "err_type": err_type, "deleted rows": result.scalars().all()}
 
 
 # BaseRepository = BaseRepositoryLesson

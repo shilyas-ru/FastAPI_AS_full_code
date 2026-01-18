@@ -111,8 +111,11 @@ async def show_hotels_get(pagination: PaginationAllDep):
         #                                                  offset=(pagination.page - 1) * pagination.per_page)
         # return await HotelsRepository(session).get_one_or_none(title="ффф")
         # return await HotelsRepository(session).get_all()
-        return await HotelsRepository(session).get_limit(limit=pagination.per_page,
-                                                         offset=(pagination.page - 1) * pagination.per_page)
+        if pagination.all_hotels:
+            return await HotelsRepository(session).get_all()
+        else:
+            return await HotelsRepository(session).get_limit(limit=pagination.per_page,
+                                                             offset=(pagination.page - 1) * pagination.per_page)
 
 
 @router.get("/find",
@@ -247,20 +250,24 @@ async def delete_hotel_id_del(hotel_path: Annotated[HotelPath, Path()]):
     """
 
     async with async_session_maker() as session:
-        # Получаем объект по первичному ключу
-        hotel = await session.get(HotelsORM, hotel_path.hotel_id)
-
-        # если не найден, отправляем статусный код и сообщение об ошибке
-        if not hotel:
-            return {"status": "Error",
-                    "deleted": f"Не найден отель с идентификатором {hotel_path.hotel_id}."}
-        await session.delete(hotel)  # Удаляем объект
-        await session.commit()  # Подтверждаем удаление
-        deleted = {"id": hotel.id,
-                   "title": hotel.title,
-                   "location": hotel.location, }
-
-    return {"status": "OK", "deleted": deleted}
+        #     # Получаем объект по первичному ключу
+        #     hotel = await session.get(HotelsORM, hotel_path.hotel_id)
+        #
+        #     # если не найден, отправляем статусный код и сообщение об ошибке
+        #     if not hotel:
+        #         return {"status": "Error",
+        #                 "deleted": f"Не найден отель с идентификатором {hotel_path.hotel_id}."}
+        #     await session.delete(hotel)  # Удаляем объект
+        #     await session.commit()  # Подтверждаем удаление
+        #     deleted = {"id": hotel.id,
+        #                "title": hotel.title,
+        #                "location": hotel.location, }
+        #
+        # return {"status": "OK", "deleted": deleted}
+        result = await HotelsRepository(session).delete(id=hotel_path.hotel_id)
+        await session.commit()  # Подтверждаем изменение
+#     # return {"status": status, "err_type": err_type}
+    return {"result": result}
 
 
 @router.delete("",
@@ -414,7 +421,7 @@ async def create_hotel_post(hotel_caption: Annotated[HotelCaptionRec,
         # add_hotel_stmt = insert(HotelsORM).values(**hotel_caption.model_dump())
         # result = await session.execute(add_hotel_stmt)
         # add_id = result.scalars().all()[0]
-        result = await HotelsRepository(session).add_item(**hotel_caption.model_dump())
+        result = await HotelsRepository(session).add(hotel_caption)
         await session.commit()
         status = "OK"
     return {"status": status, "data": result}
@@ -448,20 +455,26 @@ async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
     status = f"Для отеля с идентификатором {hotel_path.hotel_id} ничего не найдено"
     err_type = 1
     async with async_session_maker() as session:
-        # Обновить сразу все найденные записи - обновление через метод update
-        update_hotels_stmt = (update(HotelsORM)
-                              .where(HotelsORM.id == hotel_path.hotel_id)
-                              .values(title=hotel_caption.title,
-                                      location=hotel_caption.location)
-                              )
-        result = await session.execute(update_hotels_stmt)
-        updated_rows = result.rowcount
-        if updated_rows == 0:
-            return {"status": status, "err_type": err_type}
+        #     # Обновить сразу все найденные записи - обновление через метод update
+        #     update_hotels_stmt = (update(HotelsORM)
+        #                           .where(HotelsORM.id == hotel_path.hotel_id)
+        #                           .values(title=hotel_caption.title,
+        #                                   location=hotel_caption.location)
+        #                           )
+        #     result = await session.execute(update_hotels_stmt)
+        #     updated_rows = result.rowcount
+        #     if updated_rows == 0:
+        #         return {"status": status, "err_type": err_type}
+        #     await session.commit()  # Подтверждаем изменение
+        # status = "OK"
+        # err_type = 0
+        # result = await HotelsRepository(session).edit(edited_data=hotel_caption,
+        #                                               filtering={"id": hotel_path.hotel_id})
+        result = await HotelsRepository(session).edit(edited_data=hotel_caption,
+                                                      id=hotel_path.hotel_id)
         await session.commit()  # Подтверждаем изменение
-    status = "OK"
-    err_type = 0
-    return {"status": status, "err_type": err_type}
+    # return {"status": status, "err_type": err_type}
+    return {"result": result}
 
 
 @router.patch("/{hotel_id}",

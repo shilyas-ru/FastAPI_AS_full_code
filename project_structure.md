@@ -24,8 +24,8 @@ Project
 │                   В последней строке меняем 79 на 88 – это количество символов в строке.
 │                   - Раскомментируем строку 12:
 │                   file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
-├── project_structure.md    Этот файл
-├── requirements.txt        Пакеты для установки
+├── project_structure.md    Этот файл.
+├── requirements.txt        Пакеты для установки.
 ├── src
 │   ├── config.py       Импорт переменных окружения из файла .env и 
 │   │                   подготавливает их для использования в программе.

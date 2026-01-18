@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.exc import MultipleResultsFound
 
@@ -9,23 +10,20 @@ from src.models.hotels import HotelsORM
 # HotelsRepositoryLesson - код репозитария из урока.
 # В уроке назывался class HotelsRepository:
 class HotelsRepositoryLesson:
-    # model = HotelsORM
-
-    def __init__(self, session, model):
-        self.session = session
-        self.model = model
+    model = HotelsORM
 
     async def get_all(
             self,
+            location,
+            title,
             limit,
             offset,
     ):
-        print('Вызов метода наследника')
         query = select(HotelsORM)
-        # if location:
-        #     query = query.filter(func.lower(HotelsORM.location).contains(location.strip().lower()))
-        # if title:
-        #     query = query.filter(func.lower(HotelsORM.title).contains(title.strip().lower()))
+        if location:
+            query = query.filter(func.lower(HotelsORM.location).contains(location.strip().lower()))
+        if title:
+            query = query.filter(func.lower(HotelsORM.title).contains(title.strip().lower()))
         query = (
             query
             .limit(limit)
@@ -33,6 +31,7 @@ class HotelsRepositoryLesson:
         )
         print(query.compile(compile_kwargs={"literal_binds": True}))
         result = await self.session.execute(query)
+
         return result.scalars().all()
 
 
@@ -46,7 +45,6 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
     async def get_all(self):
         """
         Метод класса. Выбирает все строки. Использует родительский метод get_rows.
-        Возвращает список из выбранных строк или пустой список: []
         """
         result = await super().get_rows(show_all=True)
         # Возвращает пустой список: [] или
@@ -64,14 +62,13 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         """
         Метод класса. Выбирает заданное количество строк с
         заданным смещением. Использует родительский метод get_rows.
-        Возвращает список из выбранных строк или пустой список: []
         """
-        query = select(super().model)
+        query = select(self.model)
         if title:
-            query = query.filter(func.lower(super().model.title)
+            query = query.filter(func.lower(self.model.title)
                                  .contains(title.strip().lower()))
         if location:
-            query = query.filter(func.lower(super().model.location)
+            query = query.filter(func.lower(self.model.location)
                                  .contains(location.strip().lower()))
         result = await super().get_rows(query=query, limit=limit, offset=offset)
         # Возвращает пустой список: [] или
@@ -86,7 +83,7 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         одной строки, то поднимается исключение MultipleResultsFound.
         Использует родительский метод get_rows.
         """
-        query = select(super().model)
+        query = select(self.model)
         if title:
             query = query.filter(func.lower(HotelsORM.title)
                                  .contains(title.strip().lower()))
@@ -106,28 +103,19 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
             raise MultipleResultsFound
         return result if result else None
 
-    async def add_item_insert(self, **kwargs):
+    async def add(self, added_data: BaseModel, **kwargs):
         """
         Метод класса. Добавляет один объект в базу, используя метод
         insert. Возвращает номер добавленного объекта. Служит обёрткой
         для родительского метода add_item_insert.
 
-        Возвращает номер добавленного объекта.
+        Возвращает добавленный объект.
         """
-        result = await super().add_item_insert(**kwargs)
+        result = await super().add(added_data, **kwargs)
         return result
 
-    async def add_item(self, **kwargs):
-        """
-        Метод класса. Добавляет один объект в базу, используя метод
-        session.add. Возвращает добавленный объект. Служит обёрткой
-        для родительского метода add_item.
-
-        Возвращает добавленный объект.
-        После выполнения session.commit() возвращённый объект
-        записывается в базу данных и получает значение в поле id.
-        """
-        result = await super().add_item(**kwargs)
+    async def edit(self, edited_data: BaseModel, **filtering):  # -> None:
+        result = await super().edit(edited_data, **filtering)
         return result
 
 
