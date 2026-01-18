@@ -321,7 +321,7 @@ async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()]):
 
         # Применяется метод session.get
         # Возвращает None или объект
-        result = await HotelsRepository(session).get_id(object_id=hotel_path.hotel_id)
+        result = await HotelsRepository(session).get_id(hotel_id=hotel_path.hotel_id)
         # Применяется метод select и затем result.scalars().one_or_none()
         # Так как ищем по ключу, то элемент один или его нет.
         # result = await HotelsRepository(session).get_one_or_none(id=hotel_path.hotel_id)
@@ -602,8 +602,8 @@ async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
         #     await session.commit()  # Подтверждаем изменение
         # status = "OK"
         # err_type = 0
-        # result = await HotelsRepository(session).edit(edited_data=hotel_caption,
-        #                                               filtering={"id": hotel_path.hotel_id})
+        # result = await HotelsRepository(session).edit_id(edited_data=hotel_caption,
+        #                                                  object_id=hotel_path.hotel_id)
         result = await HotelsRepository(session).edit(edited_data=hotel_caption,
                                                       id=hotel_path.hotel_id)
         await session.commit()  # Подтверждаем изменение

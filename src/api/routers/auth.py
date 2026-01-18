@@ -1,18 +1,11 @@
-from datetime import datetime, timezone, timedelta
-from typing import Annotated
-
-import jwt
 from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies.dependencies import UserIdDep
-from src.config import settings
 from src.database import async_session_maker
 from src.repositories.users import UsersRepository
 from src.schemas.users import UserDescriptionRecURL, UserBase, UserWithHashedPasswordPydSchm
 from src.services.auth import AuthService
-
-from passlib.context import CryptContext
 
 # Устанавливаем библиотеки: pip install pyjwt "passlib[bcrypt]"
 # https://fastapi.qubitpi.org/tutorial/security/oauth2-jwt/
@@ -32,48 +25,6 @@ post("/auth/only_auth") - Тестовый метод для получения 
 # Если в списке указывается несколько тегов, то для
 # каждого тега создаётся свой раздел в документации
 router = APIRouter(prefix="/auth", tags=["Авторизация и аутентификация"])
-
-
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# to get a string like this run:
-# openssl rand -hex 32
-# Эти переменные потом надо будет перенести в переменный окружения.
-# JWT_SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-# JWT_ALGORITHM = "HS256"  # Алгоритм по умолчанию
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Количество минут, сколько токен будет жить
-
-
-# # Упрощённый вариант:
-# # def create_access_token(data: dict) -> str:
-# #     to_encode = data.copy()
-# #     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-# #     to_encode |= {"exp": expire}  # Синтаксис  |= появился с вер 3.9 и означает:
-# #                                   # to_encode = to_encode | {"exp": expire}
-# #                                   # Является аналогом to_encode.update({"exp": expire})
-# #     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-# #     return encoded_jwt
-#
-#
-# # Вариант из документации
-# # OAuth2 with Password (and hashing), Bearer with JWT tokens
-# # https://fastapi.qubitpi.org/tutorial/security/oauth2-jwt/
-# def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-#     to_encode = data.copy()  # Копируем словарь, чтобы исходный словарь data не изменять
-#     if expires_delta:
-#         expire = datetime.now(timezone.utc) + expires_delta
-#     else:
-#         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-#     to_encode.update({"exp": expire})
-#     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.ALGORITHM)
-#     return encoded_jwt
-
-
-# # Вариант из документации
-# # OAuth2 with Password (and hashing), Bearer with JWT tokens
-# # https://fastapi.qubitpi.org/tutorial/security/oauth2-jwt/
-# def verify_password(plain_password, hashed_password):
-#     return pwd_context.verify(plain_password, hashed_password)
 
 
 @router.post("/register",
@@ -116,12 +67,12 @@ async def register_user_post(user_info: UserDescriptionRecURL):
 
 
 @router.post("/login",
-             summary="Проверка, что пользователь существует и может авторизоваться",
+             summary="Авторизация пользователя",
              )
 async def login_user_post(user_info: UserDescriptionRecURL,
                           response: Response):
     """
-    ## Функция проверяет, что пользователь существует и может авторизоваться.
+    ## Функция проверяет, что пользователь существует и может авторизоваться, при успехе происходит авторизация пользователя.
 
     Параметры (передаются методом Body):
     - ***:param** email:* Электронная почта (обязательно)
@@ -152,10 +103,17 @@ async def login_user_post(user_info: UserDescriptionRecURL,
         if not AuthService().verify_password(user_info.password, user.hashed_password):
             raise HTTPException(status_code=401,
                                 detail="Пароль не верный")
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = AuthService().create_access_token(data={"user_id": user.id},
-                                                         expires_delta=access_token_expires)
 
+        # validity_period - словарь, ключи которого должны совпадать с параметрами функции:
+        # timedelta(days=0, seconds=0, microseconds=0,
+        #           milliseconds=0, minutes=0, hours=0, weeks=0)
+        # Можно не указывать значение validity_period:
+        # access_token = AuthService().create_access_token(data={"user_id": user.id})
+        # тогда длительность будет установлена по
+        # умолчанию: minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        validity_period = {"hours": 1, "minutes": 30}
+        access_token = AuthService().create_access_token(data={"user_id": user.id},
+                                                         validity_period=validity_period)
         status = "OK"
         response.set_cookie("access_token", access_token)  # отправили в куки
     return {"status": status, "access_token": access_token}  # отправили клиенту

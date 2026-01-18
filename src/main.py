@@ -10,30 +10,40 @@ sys.path.append(str(Path(__file__).parent.parent))
 # str(Path(__file__).parent.parent - взять родителя папки src (корневая папка проекта)
 # Добавление папки проекта в пути - делаем ДО всех импортов из проекта
 
-# Следующая строка использует файл src/api/routers/hotels.py
+# Следующая строка использует файл src/api/routers/auth.py
 from src.api.routers.auth import router as router_auth
+from src.api.routers.rooms import router as router_rooms
 from src.api.routers.hotels import router as router_hotels
-# from src.config import settings
-#
-# print(f"{settings.DB_URL = }")
+
 
 """
-## Задание №10: Ручка на выход из системы
+## Задание №11: Функционал номеров
+Необходимо создать API ручки для взаимодействия с номерами. По сути, 
+нужны все те же самые ручки, что мы делали для отелей (см. скриншот).
 
-Необходимо реализовать ручку для выхода из системы. Ручку 
-можно назвать /logout. После вызова ручки пользователя должно 
-"разлогинить" — подумайте, как это можно реализовать, зная, 
-как "залогинить" пользователя
+Для этого нужны создать:
+- роутер и ручки
+- pydantic схемы
+- репозиторий
 
-Вам необходимо провести небольшое исследование и понять, 
-какой HTTP метод стоит использовать для этой операции — GET, 
-POST, PUT, PATCH или DELETE.
+Давайте вынесем роутер с номерами в отдельный файл, чтобы 
+файл hotels.py не сильно распух :)
+
+Конкретизировано в видео:
+- Именование URL: /hotels/{hotel_id}/rooms/{rooms_id}
+- Необходимо реализовать для номеров:
+    1. Вывести информацию по всем номерам отеля
+    2. Выбрать инфо по конкретному номеру по id
+    3. Добавить номер с примерами данных
+    4. Изменять номер post
+    5. Изменять номер patch
+    6. Удалять номер
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Задание №10: Ручка на выход из системы",  # short summary of the API
-    "version": "ver. 0.10.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Задание №11: Функционал номеров",  # short summary of the API
+    "version": "ver. 0.11.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
@@ -73,6 +83,8 @@ tags_metadata = {
                    "Редактор markdown онлайн</a>.</li>"
                    '<li><a href="https://jwt.io/" target="_blank">'
                    "Проверка JWT токенов онлайн - jwt.io</a>.</li>"
+                   '<li><a href="https://restfulapi.net/resource-naming/" target="_blank">'
+                   "REST API URI Naming Conventions and Best Practices</a>.</li>"
                    "</ul>"
                    'В методе API `delete("/hotels")` можно получить список удаляемых записей '
                    "через параметр "
@@ -88,7 +100,10 @@ tags_metadata = {
                    "which corresponds to the SQL RETURNING clause as supported by PostgreSQL, Oracle, "
                    "MS-SQL, and Firebird. It is not supported for any other backend at this time.<br>"
                    "Given a list of column expressions in the same manner as that of a select() "
-                   "construct, the values of these columns will be returned as a regular result set..."
+                   "construct, the values of these columns will be returned as a regular result set...<br><br>"
+                   "Порядок вывода разделов задаётся в переменной openapi_tags в файле main.py - d каком "
+                   "порядке указаны в openapi_tags записи - в таком они в документации "
+                   "http://127.0.0.1:8000/docs и выводятся."
 }
 
 """
@@ -98,6 +113,15 @@ https://fastapi.tiangolo.com/ru/tutorial/metadata/
 
 # В каком порядке указаны в openapi_tags записи - в таком они в документации и выводятся.
 openapi_tags = [
+    {
+        "name": router_rooms.tags[0],
+        "description": "Операции с номерами.",
+        "externalDocs":
+            {
+                "description": "Подробнее во внешней документации (www.example.com)",
+                "url": "https://www.example.com/",
+            }
+    },
     {
         "name": router_auth.tags[0],
         "description": "Операции с пользователями.",
@@ -121,6 +145,7 @@ openapi_tags = [
 app = FastAPI(**tags_metadata,
               openapi_tags=openapi_tags)
 app.include_router(router_auth)
+app.include_router(router_rooms)
 app.include_router(router_hotels)
 
 if __name__ == "__main__":

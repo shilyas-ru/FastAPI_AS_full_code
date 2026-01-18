@@ -46,13 +46,15 @@ class AuthService:
     # Вариант из документации
     # OAuth2 with Password (and hashing), Bearer with JWT tokens
     # https://fastapi.qubitpi.org/tutorial/security/oauth2-jwt/
+    # def create_access_token(self, data: dict,
+    #                         expires_delta: timedelta | None = None) -> str:
     def create_access_token(self, data: dict,
-                            expires_delta: timedelta | None = None) -> str:
+                            validity_period: dict | None = None) -> str:
         to_encode = data.copy()  # Копируем словарь, чтобы исходный словарь data не изменять
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        if validity_period is None:
+            validity_period = {"minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES}
+        expires_delta = timedelta(**validity_period)
+        expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode,
                                  settings.JWT_SECRET_KEY,

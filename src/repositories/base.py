@@ -145,8 +145,16 @@ class BaseRepositoryMyCode:
 
     async def get_rows(self, *args,
                        query=None,
-                       offset=(pagination_pages["page"] - 1) * pagination_pages["per_page"],
-                       limit=pagination_pages["per_page"],
+                       per_page=pagination_pages["per_page"],
+                       page=pagination_pages["page"],
+                       # offset=(pagination_pages["page"] - 1) * pagination_pages["per_page"],
+                       # limit=pagination_pages["per_page"],
+                       #         :param offset: Количество строк, пропускаемых при выборке.
+                       #                 Имеет значение по умолчанию.
+                       #                 Не используется, если параметр show_all=True.
+                       #         :param limit: Количество строк, выбираемых из базы данных.
+                       #                 Имеет значение по умолчанию.
+                       #                 Не используется, если параметр show_all=True.
                        show_all=None,
                        order_by=True,
                        **kwargs):
@@ -157,12 +165,12 @@ class BaseRepositoryMyCode:
         :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
                 то он формируется внутри метода. В качестве значений могут
                 приходить запросы, связанные с разными фильтрами.
-        :param offset: Количество строк, пропускаемых при выборке.
-                Имеет значение по умолчанию.
-                Не используется, если параметр show_all=True.
-        :param limit: Количество строк, выбираемых из базы данных.
-                Имеет значение по умолчанию.
-                Не используется, если параметр show_all=True.
+        :param per_page: Количество элементов на странице (должно быть >=1 и <=30,
+            по умолчанию значение 3).
+            Не используется, если параметр show_all=True.
+        :param page: Номер страницы для вывода (должно быть >=1, по умолчанию
+            значение 1).
+            Не используется, если параметр show_all=True.
         :param show_all: Выбирать сразу (True) все записи, соответствующие
                 запросу, или выполнить ограниченную выборку (False или None).
                 Может отсутствовать.
@@ -177,10 +185,13 @@ class BaseRepositoryMyCode:
                  ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
                 Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
+
         if query is None:
             query = select(self.model)
 
         if not show_all:
+            limit = per_page
+            offset = ((page - 1) * per_page)
             query = query.limit(limit).offset(offset)
 
         if order_by:
@@ -396,6 +407,65 @@ class BaseRepositoryMyCode:
         # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         # return result
         return result_pydantic_schema
+
+    async def delete_id(self, object_id: int):  # -> None:
+        """
+        Метод класса. Выбирает по идентификатору (по первичному ключу) -
+        поле self.model.id один объект в базе, используя метод get, удаляет
+        методом session.delete.
+        Используются методы:
+        - session.get(RoomsORM, object_id) для получения объекта по ключу
+        - session.delete(room_object) для удаления объекта room_object.
+
+        :param object_id: Идентификатор выбираемого объекта.
+        :return: Возвращает None или удалённый объект, преобразованный
+            к схеме Pydantic: self.schema.
+        """
+        result = await self.session.get(self.model, object_id)
+        # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
+        # return result
+        # Шаг 4: Преобразование объекта SQLAlchemy в Pydantic
+        if result:
+
+            # result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            result_pydantic_schema = self.schema.model_validate(result)
+            # Получаем элемент HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16).
+            # Тип возвращаемого элемента преобразован к схеме Pydantic: self.schema
+
+            # Deleting
+            # The Session.delete() method places an instance into the
+            # Session’s list of objects to be marked as deleted:
+            # https://docs.sqlalchemy.org/en/20/orm/session_basics.html#deleting
+            await self.session.delete(result)
+            # print(type(self.session.deleted))
+            #       <class 'sqlalchemy.cyextension.collections.IdentitySet'>
+            # print(self.session.deleted)
+            #       IdentitySet([<src.models.rooms.RoomsORM object at 0x000002E1471F6F90>])
+            # По поводу IdentitySet:
+            # в venv\Lib\site-packages\sqlalchemy\util\_collections.py импортируется.
+            # описывается как:
+            # A set that considers only object id() for uniqueness.
+            # This strategy has edge cases for builtin types- it's possible to have
+            # two 'foo' strings in one of these sets, for example.  Use sparingly.
+            # Набор, который учитывает только идентификатор объекта() для определения уникальности.
+            # У этой стратегии есть крайние варианты для встроенных типов - например, можно использовать
+            # две строки 'foo' в одном из этих наборов.  Используйте с осторожностью.
+            #
+            # Раздел в справке "Data Manipulation with the ORM"
+            # https://docs.sqlalchemy.org/en/20/tutorial/orm_data_manipulation.html
+            # Также:
+            # https://docs.sqlalchemy.org/en/20/orm/session_api.html#sqlalchemy.orm.Session.delete
+            #  method sqlalchemy.orm.Session.delete(instance: object) → None
+            # Mark an instance as deleted.
+            # The object is assumed to be either persistent or detached when passed; after
+            # the method is called, the object will remain in the persistent state until the
+            # next flush proceeds. During this time, the object will also be a member of the
+            # Session.deleted collection.
+            # Получаем все элементы множества self.session.deleted: IdentitySet
+            # result_pydantic_schema_deleted = [self.schema.model_validate(row_model)
+            #                                   for row_model in self.session.deleted]
+            return result_pydantic_schema
+        return None
 
     async def get_id(self, object_id: Union[int | None] = None):  # -> None:
         """

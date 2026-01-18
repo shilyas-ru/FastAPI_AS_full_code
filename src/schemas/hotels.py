@@ -73,6 +73,11 @@ class HotelDescriptionRecURL(BaseModel):
 class HotelDescriptionOptURL(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # hotels (класс HotelsORM в файле src\models\hotels.py).
+    #
+    # Этот класс используется, когда надо обновить КАКИЕ-то поля,
+    # а не все поля сразу. Поэтому для полей устанавливается
+    # возможность при определении типа поля, например: str | None
+    # и указывается значение по умолчанию: default=None
     title: str | None = Field(default=None,
                               description=hotel["title"],
                               min_length=3,
