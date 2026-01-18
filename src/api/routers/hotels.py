@@ -48,7 +48,6 @@ patch("/hotels/{hotel_id}") - Обновление каких-либо данн�
         Функция: change_hotel_patch
 """
 
-
 router = APIRouter(prefix="/hotels", tags=["Отели"])
 
 
@@ -69,17 +68,54 @@ async def show_hotels_get(pagination: PaginationAllDep):
     - ***:param** all_hotels:* отображать все отели сразу (True), или делать
                 вывод постранично (False или None). Может отсутствовать.
 
-    ***:return:*** Список отелей или строка с уведомлением, если список отель пуст.
-
     Если параметр `all_hotels` имеет значение `True`, то остальные
     параметры игнорируются и сразу выводится полный список.
 
+    ***:return:*** Список отелей или строка с уведомлением, если список отель пуст.
+
     Список отелей выводится в виде:
     list(info: list(str, str), list(dict(hotel_item: HotelItem) | str)), где:
-    - ***info***, это информация, какая страница выводится и сколько элементов на странице;
+    - ***info***, это две строки:
+      - какая страница выводится;
+      - сколько элементов на странице;
     - ***list(dict(hotel_item: HotelItem) | str)***, это список выводимых отелей или строка,
     что "Данные отсутствуют".
+
+    ***Пример вывода:***
+    ```
+    [
+     [
+      "Страница 1, установлено отображение 3 элемент(-а/-ов) на странице.",
+      "Всего выводится 0 элемент(-а/-ов) на странице."
+     ],
+      "Данные отсутствуют."
+    ]
+    ```
+    или
+    ```
+    [
+     [
+      "Полный список отелей.",
+      "Всего выводится 23 элемент(-а/-ов) на странице."
+     ],
+     [
+      {
+        "title": "Наименование отеля",
+        "location": "Адрес отеля",
+        "id": 16
+      },
+      ...
+     ]
+    ]
+    ```
     """
+    f = [
+         [
+            "Страница 1, установлено отображение 3 элемент(-а/-ов) на странице.",
+            "Всего выводится 0 элемент(-а/-ов) на странице."
+         ],
+         "Данные отсутствуют."
+        ]
     # get_hotels_query = select(HotelsORM)
     # if not pagination.all_hotels:
     #     skip = (pagination.page - 1) * pagination.per_page
@@ -114,8 +150,10 @@ async def show_hotels_get(pagination: PaginationAllDep):
         if pagination.all_hotels:
             return await HotelsRepository(session).get_all()
         else:
-            return await HotelsRepository(session).get_limit(limit=pagination.per_page,
-                                                             offset=(pagination.page - 1) * pagination.per_page)
+            # return await HotelsRepository(session).get_limit(limit=pagination.per_page,
+            #                                                  offset=(pagination.page - 1) * pagination.per_page)
+            return await HotelsRepository(session).get_limit(per_page=pagination.per_page,
+                                                             page=pagination.page)
 
 
 @router.get("/find",
@@ -186,21 +224,21 @@ async def find_hotels_get(pagination: PaginationPagesDep,
     if hotel_location:
         if case_sensitivity:
             get_hotels_query = (get_hotels_query
-                                .where(HotelsORM.location.like(location_type+hotel_location+"%"))
+                                .where(HotelsORM.location.like(location_type + hotel_location + "%"))
                                 )
         else:
             get_hotels_query = (get_hotels_query
-                                .where(HotelsORM.location.ilike(location_type+hotel_location+"%"))
+                                .where(HotelsORM.location.ilike(location_type + hotel_location + "%"))
                                 )
 
     if hotel_title:
         if case_sensitivity:
             get_hotels_query = (get_hotels_query
-                                .filter(HotelsORM.title.like(location_type+hotel_title+"%"))
+                                .filter(HotelsORM.title.like(location_type + hotel_title + "%"))
                                 )
         else:
             get_hotels_query = (get_hotels_query
-                                .filter(HotelsORM.title.ilike(location_type+hotel_title+"%"))
+                                .filter(HotelsORM.title.ilike(location_type + hotel_title + "%"))
                                 )
 
     get_hotels_query = get_hotels_query.order_by(HotelsORM.id)
@@ -214,6 +252,7 @@ async def find_hotels_get(pagination: PaginationPagesDep,
     async with async_session_maker() as session:
         result = await session.execute(get_hotels_query)
     hotels_lst = result.scalars().all()
+    hotels_lst = result
 
     status = (f"Страница {pagination.page}, установлено отображение {pagination.per_page} "
               f"элемент(-а/-ов) на странице.",
@@ -224,6 +263,50 @@ async def find_hotels_get(pagination: PaginationPagesDep,
         status = (status, hotels_lst)
 
     return status
+
+
+@router.get("/{hotel_id}",
+            tags=["Отели"],
+            summary="Получение из базы данных выбранной записи по идентификатору отеля",
+            )
+async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()]):
+    """
+    ## Функция получает из базы данных выбранную запись по идентификатору отеля.
+
+    Параметры (передаются в URL):
+    - ***:param** id:* Идентификатор отеля (обязательно).
+
+    ***:return:*** Словарь: `{"status": str, "err_type": int, "got row": dict}`, где:
+
+    - ***status***: Текстовое описание результата операции.;
+    - ***err_type***: Код результата операции.
+      Принимает значения:
+      - 0 (OK: выполнено нормально, без ошибок).
+      - 1 (Error: Для объекта с указанным идентификатором ничего не найдено).
+      - 2 (Error: Не указан идентификатор отеля для выборки).
+    - ***got_row***: Выбранный объект. Выводятся в виде словаря элементы
+      объекта HotelsORM.
+    """
+
+    async with async_session_maker() as session:
+        #     # Получаем объект по первичному ключу
+        #     hotel = await session.get(HotelsORM, hotel_path.hotel_id)
+        #
+        #     # если не найден, отправляем статусный код и сообщение об ошибке
+        #     if not hotel:
+        #         return {"status": "Error",
+        #                 "deleted": f"Не найден отель с идентификатором {hotel_path.hotel_id}."}
+        #     await session.delete(hotel)  # Удаляем объект
+        #     await session.commit()  # Подтверждаем удаление
+        #     deleted = {"id": hotel.id,
+        #                "title": hotel.title,
+        #                "location": hotel.location, }
+        #
+        # return {"status": "OK", "deleted": deleted}
+        result = await HotelsRepository(session).get_id(object_id=hotel_path.hotel_id)
+        # await session.commit()  # Подтверждаем изменение
+    #     # return {"status": status, "err_type": err_type}
+    return result
 
 
 @router.delete("/{hotel_id}",
@@ -266,8 +349,8 @@ async def delete_hotel_id_del(hotel_path: Annotated[HotelPath, Path()]):
         # return {"status": "OK", "deleted": deleted}
         result = await HotelsRepository(session).delete(id=hotel_path.hotel_id)
         await session.commit()  # Подтверждаем изменение
-#     # return {"status": status, "err_type": err_type}
-    return {"result": result}
+    #     # return {"status": status, "err_type": err_type}
+    return result
 
 
 @router.delete("",
@@ -282,18 +365,18 @@ async def delete_hotel_param_del(hotel_location: Annotated[str | None, Query(min
                                                                           description="Название отеля"
                                                                           )] = None,
                                  case_sensitivity: Annotated[bool | None,
-                                                             Query(alias="case-sensitivity",
-                                                                   description="Поиск с учётом регистра "
-                                                                               "(True) или регистронезависимый "
-                                                                               "(False или None)",
-                                                                   )] = None,
+                                 Query(alias="case-sensitivity",
+                                       description="Поиск с учётом регистра "
+                                                   "(True) или регистронезависимый "
+                                                   "(False или None)",
+                                       )] = None,
                                  starts_with: Annotated[bool | None,
-                                                        Query(alias="starts-with",
-                                                              description="Поиск строк, начинающихся с "
-                                                                          "заданного текста (True), или "
-                                                                          "поиск строк, содержащих "
-                                                                          "заданный текст (False или None)",
-                                                              )] = None,
+                                 Query(alias="starts-with",
+                                       description="Поиск строк, начинающихся с "
+                                                   "заданного текста (True), или "
+                                                   "поиск строк, содержащих "
+                                                   "заданный текст (False или None)",
+                                       )] = None,
                                  ):
     """
     ## Функция удаляет выбранную запись или записи с выборкой, что удалять, по наименованию и адресу отеля.
@@ -335,21 +418,21 @@ async def delete_hotel_param_del(hotel_location: Annotated[str | None, Query(min
     if hotel_location:
         if case_sensitivity:
             get_hotels_query = (get_hotels_query
-                                .where(HotelsORM.location.like(location_type+hotel_location+"%"))
+                                .where(HotelsORM.location.like(location_type + hotel_location + "%"))
                                 )
         else:
             get_hotels_query = (get_hotels_query
-                                .where(HotelsORM.location.ilike(location_type+hotel_location+"%"))
+                                .where(HotelsORM.location.ilike(location_type + hotel_location + "%"))
                                 )
 
     if hotel_title:
         if case_sensitivity:
             get_hotels_query = (get_hotels_query
-                                .filter(HotelsORM.title.like(location_type+hotel_title+"%"))
+                                .filter(HotelsORM.title.like(location_type + hotel_title + "%"))
                                 )
         else:
             get_hotels_query = (get_hotels_query
-                                .filter(HotelsORM.title.ilike(location_type+hotel_title+"%"))
+                                .filter(HotelsORM.title.ilike(location_type + hotel_title + "%"))
                                 )
 
     get_hotels_query = get_hotels_query.order_by(HotelsORM.id)
@@ -393,14 +476,14 @@ async def delete_hotel_param_del(hotel_location: Annotated[str | None, Query(min
              summary="Создание записи с новым отелем",
              )
 async def create_hotel_post(hotel_caption: Annotated[HotelCaptionRec,
-                                                     Body(openapi_examples={
-                                                         "1": {"summary": "Сочи",
-                                                               "value": {"title": "title Сочи",
-                                                                         "location": "location Сочи"}},
-                                                         "2": {"summary": "Дубай",
-                                                               "value": {"title": "title Дубай",
-                                                                         "location": "location Дубай"}}
-                                                     })]):
+Body(openapi_examples={
+    "1": {"summary": "Сочи",
+          "value": {"title": "title Сочи",
+                    "location": "location Сочи"}},
+    "2": {"summary": "Дубай",
+          "value": {"title": "title Дубай",
+                    "location": "location Дубай"}}
+})]):
     """
     ## Функция создаёт запись.
 
@@ -474,7 +557,7 @@ async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
                                                       id=hotel_path.hotel_id)
         await session.commit()  # Подтверждаем изменение
     # return {"status": status, "err_type": err_type}
-    return {"result": result}
+    return result
 
 
 @router.patch("/{hotel_id}",
@@ -483,20 +566,20 @@ async def change_hotel_put(hotel_path: Annotated[HotelPath, Path()],
               )
 # Тут параметр examples переопределяет то, что в схеме
 async def change_hotel_patch(hotel_path: Annotated[HotelPath,
-                                                   Path(examples=[{
-                                                                   "hotel_id": 1
-                                                                   }
-                                                                  ]
-                                                        )
-                                                   ],
+Path(examples=[{
+    "hotel_id": 1
+}
+]
+)
+],
                              hotel_caption: Annotated[HotelCaptionOpt,
-                                                      Body(examples=[{
-                                                                      "title": "title отеля",
-                                                                      "location": "name отеля",
-                                                                      },
-                                                                     ]
-                                                           )
-                                                      ],
+                             Body(examples=[{
+                                 "title": "title отеля",
+                                 "location": "name отеля",
+                             },
+                             ]
+                             )
+                             ],
                              ):
     """
     ## Функция обновляет каких-либо данные выборочно или все данных сразу
@@ -527,17 +610,23 @@ async def change_hotel_patch(hotel_path: Annotated[HotelPath,
 
     async with async_session_maker() as session:
         # Получаем объект по первичному ключу
-        hotel = await session.get(HotelsORM, hotel_path.hotel_id)
+        #     hotel = await session.get(HotelsORM, hotel_path.hotel_id)
+        #
+        #     # если не найден, отправляем статусный код и сообщение об ошибке
+        #     if not hotel:
+        #         return {"status": status, "err_type": err_type}
+        #
+        #     if hotel_caption.title:
+        #         hotel.title = hotel_caption.title
+        #     if hotel_caption.location:
+        #         hotel.location = hotel_caption.location
+        #     await session.commit()  # Подтверждаем изменение
+        # err_type = 0
+        # status = "OK"
 
-        # если не найден, отправляем статусный код и сообщение об ошибке
-        if not hotel:
-            return {"status": status, "err_type": err_type}
-
-        if hotel_caption.title:
-            hotel.title = hotel_caption.title
-        if hotel_caption.location:
-            hotel.location = hotel_caption.location
+        result = await HotelsRepository(session).edit(edited_data=hotel_caption,
+                                                      exclude_unset=True,
+                                                      id=hotel_path.hotel_id)
         await session.commit()  # Подтверждаем изменение
-    err_type = 0
-    status = "OK"
-    return {"status": status, "err_type": err_type}
+    # return {"status": status, "err_type": err_type}
+    return result

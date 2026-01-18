@@ -1,3 +1,5 @@
+from typing import Union
+
 from sqlalchemy import select, insert, update, delete
 from pydantic import BaseModel
 
@@ -28,6 +30,18 @@ class BaseRepositoryLesson:
         result = await self.session.execute(add_data_stmt)
         return result.scalars().one()
 
+    async def edit(self, data: BaseModel, exclude_unset: bool = False, **filter_by) -> None:
+        update_stmt = (
+            update(self.model)
+            .filter_by(**filter_by)
+            .values(**data.model_dump(exclude_unset=exclude_unset))
+        )
+        await self.session.execute(update_stmt)
+
+    async def delete(self, **filter_by) -> None:
+        delete_stmt = delete(self.model).filter_by(**filter_by)
+        await self.session.execute(delete_stmt)
+
 
 # BaseRepositoryMyCode - мой код репозитария.
 # В уроке назывался class BaseRepository:
@@ -46,8 +60,27 @@ class BaseRepositoryMyCode:
                        order_by=True,
                        **kwargs):
         """
-        Выбирает заданное количество строк с заданным смещением.
-        Возвращает список из выбранных строк или пустой список: []
+        Метод выбирает заданное количество строк с заданным смещением.
+
+        :param args: Возможные неименованные аргументы (не используются).
+        :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
+                то он формируется внутри метода. В качестве значений могут
+                приходить запросы, связанные с разными фильтрами.
+        :param offset: Количество строк, пропускаемых при выборке.
+                Имеет значение по умолчанию.
+                Не используется, если параметр show_all=True.
+        :param limit: Количество строк, выбираемых из базы данных.
+                Имеет значение по умолчанию.
+                Не используется, если параметр show_all=True.
+        :param show_all: Выбирать сразу (True) все записи, соответствующие
+                запросу, или выполнить ограниченную выборку (False или None).
+                Может отсутствовать.
+        :param order_by: Упорядочивать перед выборкой по полю self.model.id
+                записи, соответствующие запросу (True), или выбирать,
+                основываясь на порядке в базе данных (False или None).
+                Может отсутствовать.
+        :param kwargs: Возможные иные именованные аргументы (не используются).
+        :return: Возвращает список из выбранных строк или пустой список: []
         """
         if query is None:
             query = select(self.model)
@@ -63,10 +96,11 @@ class BaseRepositoryMyCode:
 
     async def add(self, added_data: BaseModel, **kwargs):
         """
-        Метод класса. Добавляет один объект в базу, используя метод
-        insert.
+        Метод класса. Добавляет один объект в базу, используя метод insert.
 
-        Возвращает добавленный объект.
+        :param added_data: Добавляемые данные.
+        :param kwargs: Возможные иные именованные аргументы (не используются).
+        :return: Возвращает список, содержащий добавленный объект.
         """
         add_stmt = (insert(self.model)
                     .returning(self.model)
@@ -74,57 +108,75 @@ class BaseRepositoryMyCode:
                             )
                     )
         result = await self.session.execute(add_stmt)
-        f = result
-        print(f)
         return result.scalars().all()
 
-    async def edit(self, edited_data: BaseModel, **filtering):  # -> None:
+    async def edit(self,
+                   edited_data: BaseModel,
+                   exclude_unset: bool = False,
+                   **filtering):  # -> None:
         """
-        Метод класса. Редактирует один объект в базе, используя метод
-        update.
+        Метод класса. Редактирует один объект в базе, используя метод update.
 
-        Возвращает отредактированный объект.
+        :param edited_data: Новые значения для внесения в выбранную запись.
+        :param exclude_unset: Редактировать все поля модели (True) или
+               редактировать только те поля, которым явно присвоено значением
+               (даже если присвоили None).
+        :param filtering: Значения фильтра для выбирания объекта.
+
+        :return: Возвращает объект sqlalchemy.engine.result.ChunkedIteratorResult.
+               Для получения конкретного объекта требуется сделать, например,
+               оператор result.scalars().all().
         """
         edit_stmt = (update(self.model)
                      .filter_by(**filtering)
-                     .values(**edited_data.model_dump())
+                     .values(**edited_data.model_dump(exclude_unset=exclude_unset))
                      .returning(self.model)
                      )
-        # print(edit_stmt.compile(compile_kwargs={"literal_binds": True}))
+        print(edit_stmt.compile(compile_kwargs={"literal_binds": True}))
         # UPDATE hotels SET title='New_string', location='New_string' WHERE hotels.id = 188 RETURNING hotels.id, hotels.title, hotels.location
-
+        # UPDATE hotels SET title='New_string', location='New_string' WHERE hotels.id = 198 RETURNING hotels.id, hotels.title, hotels.location
         result = await self.session.execute(edit_stmt)
+        # result = <sqlalchemy.engine.result.ChunkedIteratorResult object at 0x000001ACD607BED0>
         # Если используется .returning(...), то тогда количество строк находится в:
         #   updated_rows = result.raw.rowcount
         # Если не используется .returning(...), то тогда количество строк находится в:
         #   updated_rows = result.rowcount
-        updated_rows = result.raw.rowcount
-        if updated_rows == 0:
-            status = f"Для объекта с идентификатором {filtering['id']} ничего не найдено"
-            err_type = 1
-            return {"status": status, "err_type": err_type, "updated rows": None}
-        status = "OK"
-        err_type = 0
-        return {"status": status, "err_type": err_type, "updated rows": result.scalars().all()}
+        return result
 
     async def delete(self, **filtering):  # -> None:
+        """
+        Метод класса. Удаляет один объект в базе, используя метод delete.
+
+        :param filtering: Значения фильтра для выбирания объекта.
+        :return: Возвращает объект sqlalchemy.engine.result.ChunkedIteratorResult.
+               Для получения конкретного объекта требуется сделать, например,
+               оператор result.scalars().all().
+        """
         delete_stmt = delete(self.model).filter_by(**filtering).returning(self.model)
         # print(delete_stmt.compile(compile_kwargs={"literal_binds": True}))
         # DELETE FROM hotels WHERE hotels.id = 188 RETURNING hotels.id, hotels.title, hotels.location
 
         result = await self.session.execute(delete_stmt)
+        # result = <sqlalchemy.engine.result.ChunkedIteratorResult object at 0x000002330C349350>
         # Если используется .returning(...), то тогда количество строк находится в:
         #   updated_rows = result.raw.rowcount
         # Если не используется .returning(...), то тогда количество строк находится в:
         #   updated_rows = result.rowcount
-        deleted_rows = result.raw.rowcount
-        if deleted_rows == 0:
-            status = f"Для объекта с идентификатором {filtering['id']} ничего не найдено"
-            err_type = 1
-            return {"status": status, "err_type": err_type, "deleted rows": None}
-        status = "OK"
-        err_type = 0
-        return {"status": status, "err_type": err_type, "deleted rows": result.scalars().all()}
+        # deleted_rows = result.raw.rowcount
+        return result
+
+    async def get_id(self, object_id: Union[int | None] = None):  # -> None:
+        """
+        Метод класса. Выбирает по идентификатору (поле self.model.id) один
+        объект в базе, используя метод get.
+
+        :param object_id: Идентификатор выбираемого объекта.
+        :return: Возвращает объект sqlalchemy.engine.result.ChunkedIteratorResult.
+               Для получения конкретного объекта требуется сделать, например,
+               оператор result.scalars().all().
+        """
+        result = await self.session.get(self.model, object_id)
+        return result
 
 
 # BaseRepository = BaseRepositoryLesson
