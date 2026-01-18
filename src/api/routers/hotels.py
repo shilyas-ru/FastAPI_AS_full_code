@@ -318,7 +318,13 @@ async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()]):
         #                "location": hotel.location, }
         #
         # return {"status": "OK", "deleted": deleted}
+
+        # Применяется метод session.get
+        # Возвращает None или объект
         result = await HotelsRepository(session).get_id(object_id=hotel_path.hotel_id)
+        # Применяется метод select и затем result.scalars().one_or_none()
+        # Так как ищем по ключу, то элемент один или его нет.
+        # result = await HotelsRepository(session).get_one_or_none(id=hotel_path.hotel_id)
         # await session.commit()  # Подтверждаем изменение
     #     # return {"status": status, "err_type": err_type}
     return result

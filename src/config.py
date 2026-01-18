@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # model_config = SettingsConfigDict(env_file="...") виден текущий каталог, то есть src.
     # урок: https://artemshumeiko.zenclass.ru/student/courses/937c3a35-998d-4420-bd3d-9f64db23be23/lessons/173b9d0b-0fb4-42a7-8a9a-6cd3baaec62b
     # Можно в настройках Run -> Edit Configurations поменять рабочую директорию (Working directory:) на папку проекта.
+
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str  # Алгоритм по умолчанию
+    ACCESS_TOKEN_EXPIRE_MINUTES: int  # Количество минут, сколько токен будет жить
+
     model_config = SettingsConfigDict(env_file=f"{Path(__file__).parent.parent / '.env'}")
 
 

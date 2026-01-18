@@ -129,6 +129,7 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
                                      query=None,
                                      title=None,
                                      location=None,
+                                     **filtering,
                                      ):
         """
         Метод класса. Возвращает одну строку или None. Если получено более
@@ -140,6 +141,9 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
             приходить запросы, связанные с разными фильтрами.
         :param title: Наименование отеля.
         :param location: Адрес отеля.
+        :param filtering: Значения фильтра для выборки объекта. Используется
+            фильтр только на точное равенство: filter_by(**filtering), который
+            преобразуется в конструкцию (для примера): WHERE hotels.id = 188
 
         :return: Возвращает первую строку результата или None если результатов нет,
             или вызывает исключение если есть более одного результата.
@@ -158,6 +162,9 @@ class HotelsRepositoryMyCode(BaseRepositoryMyCode):
         if location:
             query = query.filter(func.lower(HotelsORM.location)
                                  .contains(location.strip().lower()))
+
+        query = query.filter_by(**filtering)
+
         result = await super().get_rows(query=query, limit=2, offset=0)
         # Возвращает пустой список: [] или список:
         # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16]

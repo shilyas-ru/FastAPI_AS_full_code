@@ -197,9 +197,14 @@ class BaseRepositoryMyCode:
         #                                                              from_attributes=True)
         #                           for hotel in result.scalars().all()]
         # И надо в таком случае везде писать from_attributes=True.
-        # Чтобы это убрать, добавляем в модель
-        result_pydantic_schema = [self.schema.model_validate(row_model,
-                                                             from_attributes=True)
+
+        # Чтобы это убрать, добавляем в Pydantic-схему HotelPydanticSchema параметр
+        # model_config = ConfigDict(from_attributes=True)
+
+        # Так как в Pydantic-схеме HotelPydanticSchema добавили параметр
+        # model_config = ConfigDict(from_attributes=True)
+        # то по умолчанию будет использоваться значение from_attributes=True
+        result_pydantic_schema = [self.schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # return result.scalars().all()
         return result_pydantic_schema
@@ -239,8 +244,10 @@ class BaseRepositoryMyCode:
         #        RETURNING hotels.id, hotels.title, hotels.location
 
         result = await self.session.execute(add_stmt)
-        result_pydantic_schema = [self.schema.model_validate(row_model,
-                                                             from_attributes=True)
+        # result_pydantic_schema = [self.schema.model_validate(row_model,
+        #                                                      from_attributes=True)
+        #                           for row_model in result.scalars().all()]
+        result_pydantic_schema = [self.schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # return result.scalars().all()
         return result_pydantic_schema
@@ -287,8 +294,10 @@ class BaseRepositoryMyCode:
         #        WHERE hotels.id = 213 RETURNING hotels.id, hotels.title, hotels.location
         result = await self.session.execute(edit_stmt)
         # result = <sqlalchemy.engine.result.ChunkedIteratorResult object at 0x000002330C349350>
-        result_pydantic_schema = [self.schema.model_validate(row_model,
-                                                             from_attributes=True)
+        # result_pydantic_schema = [self.schema.model_validate(row_model,
+        #                                                      from_attributes=True)
+        #                           for row_model in result.scalars().all()]
+        result_pydantic_schema = [self.schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # Получаем пустой список: [] или список:
         # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
@@ -341,7 +350,8 @@ class BaseRepositoryMyCode:
                     setattr(result, key, value)
 
             # Преобразование объекта SQLAlchemy в Pydantic
-            result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            # result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            result_pydantic_schema = self.schema.model_validate(result)
             # Получаем элемент HotelPydanticSchema(title='title_string',
             #                                      location='location_string',
             #                                      id=16).
@@ -374,8 +384,10 @@ class BaseRepositoryMyCode:
 
         result = await self.session.execute(delete_stmt)
         # result = <sqlalchemy.engine.result.ChunkedIteratorResult object at 0x000002330C349350>
-        result_pydantic_schema = [self.schema.model_validate(row_model,
-                                                             from_attributes=True)
+        # result_pydantic_schema = [self.schema.model_validate(row_model,
+        #                                                      from_attributes=True)
+        #                           for row_model in result.scalars().all()]
+        result_pydantic_schema = [self.schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # Получаем пустой список: [] или список:
         # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
@@ -398,13 +410,14 @@ class BaseRepositoryMyCode:
         # return result
         # Шаг 4: Преобразование объекта SQLAlchemy в Pydantic
         if result:
-            result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            # result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            result_pydantic_schema = self.schema.model_validate(result)
             # Получаем элемент HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16).
             # Тип возвращаемого элемента преобразован к схеме Pydantic: self.schema
             return result_pydantic_schema
         return None
 
-    async def get_one_or_none(self, query=None):  # -> None:
+    async def get_one_or_none(self, query=None, pydantic_schema=None, **filtering):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get.
@@ -412,6 +425,13 @@ class BaseRepositoryMyCode:
         :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
             то он формируется внутри метода. В качестве значений могут
             приходить запросы, связанные с разными фильтрами.
+        :param pydantic_schema: Схема Pydantic, к которой надо преобразовывать
+            итоговый результат. Если не задано (PydanticSchema=None), то
+            принимает значение по умолчанию: self.schema
+        :param filtering: Значения фильтра для выборки объекта. Используется
+            фильтр только на точное равенство: filter_by(**filtering), который
+            преобразуется в конструкцию (для примера): WHERE hotels.id = 188
+
         :return: Возвращает первую строку результата или None если результатов нет,
             или вызывает исключение если есть более одного результата.
             - список, содержащий один элемент, преобразованный к схеме Pydantic (self.schema):
@@ -419,22 +439,36 @@ class BaseRepositoryMyCode:
             - ошибку sqlalchemy.orm.exc.MultipleResultsFound, если более одного результата.
             - None если результатов нет.
         """
+        if pydantic_schema is None:
+            pydantic_schema = self.schema
+
         if query is None:
             query = select(self.model)
-        result = await self.session.execute(query).scalars().one_or_none()
-        # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
-        # return result
+        query = query.filter_by(**filtering)
+
+        result = await self.session.execute(query)
+
+        # model = result.scalars().one_or_none()
+        # if model is None:
+        #     return None
+        # return self.schema.model_validate(model)
+
         result = result.scalars().one_or_none()
+        # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
         # one_or_none() чтобы вернуть первую строку результата или None
         # если результатов нет, или вызвать исключение если есть более одного результата.
+
         # Шаг 4: Преобразование объекта SQLAlchemy в Pydantic
         if result:
-            result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
-            # Получаем элемент HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16).
-            # Тип возвращаемого элемента преобразован к схеме Pydantic: self.schema
+            # result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+            # result_pydantic_schema = self.schema.model_validate(result)
+            result_pydantic_schema = pydantic_schema.model_validate(result)
+            # К примеру, для отелей получаем элемент
+            # HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16).
+            # Тип возвращаемого элемента преобразован к схеме Pydantic:
+            # self.schema или к схеме, переданной в параметре pydantic_schema.
             return result_pydantic_schema
         return None
-
 
 # BaseRepository = BaseRepositoryLesson
 BaseRepository = BaseRepositoryMyCode

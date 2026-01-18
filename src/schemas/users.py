@@ -19,3 +19,7 @@ class UserPydanticSchema(BaseModel):
     email: EmailStr
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserWithHashedPasswordPydSchm(UserPydanticSchema):
+    hashed_password: str
