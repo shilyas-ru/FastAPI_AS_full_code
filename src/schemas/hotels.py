@@ -8,23 +8,6 @@ from pydantic import BaseModel, Field
 # https://fastapi.qubitpi.org/tutorial/schema-extra-example/?h=#body-with-multiple-examples
 
 
-# class HotelPath(BaseModel):
-#     hotel_id: int = Field(description="Идентификатор отеля",
-#                           ge=1,
-#                           examples=[1],
-#                           )
-#     # model_config = {
-#     #     "json_schema_extra": {
-#     #         # порядок вывод полей - алфавитный, а не как указано в коде.
-#     #         "examples": [
-#     #             {
-#     #                 "hotel_id": 1,
-#     #             }
-#     #         ]
-#     #     }
-#     # }
-
-
 hotel = {"title": "Название отеля",
          "location": "Местонахождение отеля",
          }

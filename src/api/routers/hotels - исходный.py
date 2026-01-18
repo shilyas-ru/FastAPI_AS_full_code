@@ -2,7 +2,6 @@ from fastapi import Query, Body, Path, APIRouter
 from typing import Annotated
 
 from src.models.hotels import HotelsORM
-from src.repositories.hotels import HotelsRepository
 from src.schemas.hotels import HotelPath, HotelCaptionRec, HotelCaptionOpt
 
 from src.api.dependencies.dependencies import PaginationPagesDep, PaginationAllDep
@@ -80,39 +79,31 @@ async def show_hotels_get(pagination: PaginationAllDep):
     - ***list(dict(hotel_item: HotelItem) | str)***, это список выводимых отелей или строка,
     что "Данные отсутствуют".
     """
-    # get_hotels_query = select(HotelsORM)
-    # if not pagination.all_hotels:
-    #     skip = (pagination.page - 1) * pagination.per_page
-    #     get_hotels_query = (get_hotels_query
-    #                         .limit(pagination.per_page)
-    #                         .offset(skip)
-    #                         )
-    #
-    # async with async_session_maker() as session:
-    #     result = await session.execute(get_hotels_query)
-    #     hotels_lst = result.scalars().all()
-    #
-    # if pagination.all_hotels:
-    #     status = "Полный список отелей."
-    # else:
-    #     status = (f"Страница {pagination.page}, установлено отображение {pagination.per_page} "
-    #               f"элемент(-а/-ов) на странице.")
-    # status = (status, f"Всего выводится {len(hotels_lst)} элемент(-а/-ов) на странице.")
-    # if len(hotels_lst) == 0:
-    #     status = (status, f"Данные отсутствуют.")
-    # else:
-    #     status = (status, hotels_lst)
-    #
-    # return status
+
+    get_hotels_query = select(HotelsORM)
+    if not pagination.all_hotels:
+        skip = (pagination.page - 1) * pagination.per_page
+        get_hotels_query = (get_hotels_query
+                            .limit(pagination.per_page)
+                            .offset(skip)
+                            )
 
     async with async_session_maker() as session:
-        # return await HotelsRepository(session,
-        #                               HotelsORM).get_all(limit=pagination.per_page,
-        #                                                  offset=(pagination.page - 1) * pagination.per_page)
-        # return await HotelsRepository(session).get_one_or_none(title="ффф")
-        # return await HotelsRepository(session).get_all()
-        return await HotelsRepository(session).get_limit(limit=pagination.per_page,
-                                                         offset=(pagination.page - 1) * pagination.per_page)
+        result = await session.execute(get_hotels_query)
+        hotels_lst = result.scalars().all()
+
+    if pagination.all_hotels:
+        status = "Полный список отелей."
+    else:
+        status = (f"Страница {pagination.page}, установлено отображение {pagination.per_page} "
+                  f"элемент(-а/-ов) на странице.")
+    status = (status, f"Всего выводится {len(hotels_lst)} элемент(-а/-ов) на странице.")
+    if len(hotels_lst) == 0:
+        status = (status, f"Данные отсутствуют.")
+    else:
+        status = (status, hotels_lst)
+
+    return status
 
 
 @router.get("/find",
@@ -411,13 +402,11 @@ async def create_hotel_post(hotel_caption: Annotated[HotelCaptionRec,
         # преобразуют модель в словарь Python: HotelCaptionRec.model_dump()
         # Раскрываем (распаковываем) словарь в список именованных аргументов
         # "title"= , "location"=
-        # add_hotel_stmt = insert(HotelsORM).values(**hotel_caption.model_dump())
-        # result = await session.execute(add_hotel_stmt)
-        # add_id = result.scalars().all()[0]
-        result = await HotelsRepository(session).add_item(**hotel_caption.model_dump())
+        add_hotel_stmt = insert(HotelsORM).values(**hotel_caption.model_dump())
+        await session.execute(add_hotel_stmt)
         await session.commit()
         status = "OK"
-    return {"status": status, "data": result}
+    return {"status": status}
 
 
 @router.put("/{hotel_id}",
