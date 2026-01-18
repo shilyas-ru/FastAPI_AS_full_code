@@ -11,19 +11,28 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Добавление папки проекта в пути - делаем ДО всех импортов из проекта
 
 # Следующая строка использует файл src/api/routers/hotels.py
+from src.api.routers.auth import router as router_auth
 from src.api.routers.hotels import router as router_hotels
 # from src.config import settings
 #
 # print(f"{settings.DB_URL = }")
 
 """
-## Применение паттерна DataMapper
+## Задание №8: Запретить создание нескольких юзеров с одинаковой почтой
+Необходимо запретить регистрацию пользователей с одинаковой почтой.
+
+Например, если в базе данных уже есть пользователь с почтой kot@pes.ru, 
+то второго пользователя с такой же почтой мы создать не можем.
+
+Подумайте, как можно реализовать это на уровне модели/таблицы/базы данных, 
+чтобы не пришлось дописывать дополнительную бизнес-логику внутри ручки 
+или репозитория.
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Изменение кода: Применение паттерна DataMapper",  # short summary of the API
-    "version": "ver. 0.7.1",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Задание №8: Запретить создание нескольких юзеров с одинаковой почтой",  # short summary of the API
+    "version": "ver. 0.8.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
@@ -51,6 +60,14 @@ tags_metadata = {
                    "(Alembic — store extra information in `alembic_version` table)</a>.</li>"
                    '<li><a href="https://habr.com/ru/articles/735606/" target="_blank">'
                    "Что нового в SQLAlchemy 2.0?</a>.</li>"
+                   '<li><a href="https://www.iditect.com/program-example/'
+                   'how-to-update-sqlalchemy-orm-object-by-a-python-dict.html/" '
+                   'target="_blank">'
+                   "How to update sqlalchemy orm object by a python dict</a>.</li>"
+                   '<li><a href="https://www.iditect.com/faq/python/'
+                   'how-to-get-a-raw-compiled-sql-query-from-a-sqlalchemy-expression.html/" '
+                   'target="_blank">'
+                   "How to get a raw, compiled SQL query from a SQLAlchemy expression</a>.</li>"
                    "</ul>"
                    'В методе API `delete("/hotels")` можно получить список удаляемых записей '
                    "через параметр "
@@ -74,9 +91,19 @@ URL-адреса метаданных и документации
 https://fastapi.tiangolo.com/ru/tutorial/metadata/
 """
 
+# В каком порядке указаны в openapi_tags записи - в таком они в документации и выводятся.
 openapi_tags = [
     {
-        "name": "Отели",
+        "name": router_auth.tags[0],
+        "description": "Операции с пользователями.",
+        "externalDocs":
+            {
+                "description": "Подробнее во внешней документации (www.example.com)",
+                "url": "https://www.example.com/",
+            }
+    },
+    {
+        "name": router_hotels.tags[0],
         "description": "Операции с отелями.",
         "externalDocs":
             {
@@ -88,6 +115,7 @@ openapi_tags = [
 
 app = FastAPI(**tags_metadata,
               openapi_tags=openapi_tags)
+app.include_router(router_auth)
 app.include_router(router_hotels)
 
 if __name__ == "__main__":

@@ -5,4 +5,5 @@ from src.models.rooms import RoomsORM
 
 class RoomsRepository(BaseRepository):
     model = RoomsORM
-    
+    # schema = RoomPydanticSchema
+

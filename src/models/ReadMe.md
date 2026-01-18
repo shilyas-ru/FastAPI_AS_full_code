@@ -6,12 +6,23 @@
 from src.models.rooms import RoomsORM
 ```
 
-Создание миграций в рамках проекта (для отелей, для комнат):
+Создание миграций в рамках проекта (для отелей, для комнат, для пользователей):
 
 ```
 alembic revision --autogenerate -m "001 Create table hotels"
 alembic revision --autogenerate -m "002 Create rooms hotels"
+alembic revision --autogenerate -m "003 Add users"
+alembic revision --autogenerate -m "004 Make email unique"
 ```
+
+Затем применяем миграции все не обработанные миграции:
+
+```
+alembic upgrade head
+```
+
+Иные варианты применения - см. ниже в разделе "Применение миграций".
+
 
 ### Справка
 
