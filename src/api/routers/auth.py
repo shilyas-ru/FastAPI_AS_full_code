@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException, Response
+
 from sqlalchemy.exc import IntegrityError
 
-from src.api.dependencies.dependencies import UserIdDep
-from src.database import async_session_maker
-from src.repositories.users import UsersRepository
+from src.api.dependencies.dependencies import UserIdDep, DBDep
 from src.schemas.users import UserDescriptionRecURL, UserBase, UserWithHashedPasswordPydSchm
 from src.services.auth import AuthService
 
@@ -30,7 +29,7 @@ router = APIRouter(prefix="/auth", tags=["Авторизация и аутент
 @router.post("/register",
              summary="Создание записи с новым пользователем",
              )
-async def register_user_post(user_info: UserDescriptionRecURL):
+async def register_user_post(user_info: UserDescriptionRecURL, db: DBDep):
     """
     ## Функция создаёт запись с новым пользователем.
 
@@ -55,22 +54,27 @@ async def register_user_post(user_info: UserDescriptionRecURL):
     # [SQL: INSERT INTO users (email, hashed_password) VALUES ($1::VARCHAR, $2::VARCHAR) RETURNING users.id, users.email, users.hashed_password]
     # [parameters: ('string@gf.rt', '$2b$12$UAgsjvDqbnxsOanT4yFI3u2LqzMlEDrhylikYNa92CzS6M8rsu3Ne')]
     # (Background on this error at: https://sqlalche.me/e/20/gkpj)
-    async with async_session_maker() as session:
-        try:
-            result = await UsersRepository(session).add(new_user_info)
-            await session.commit()
-        except IntegrityError:
-            return {"status": "Fail",
-                    "added data": f"Пользователь с email {user_info.email} уже существует."}
-        status = "OK"
-    return {"status": status, "added data": result}
+    try:
+        result = await db.users.add(new_user_info)
+        await db.commit()
+    except IntegrityError:
+        # status_code=422: Запрос сформирован правильно, но его невозможно
+        #                  выполнить из-за семантических ошибок
+        #                  Unprocessable Content (WebDAV)
+        raise HTTPException(status_code=422,
+                            detail={"description": "Пользователь с email"
+                                                   f"{user_info.email} уже существует",
+                                    })
+
+    return {"register user": result[0]}
 
 
 @router.post("/login",
              summary="Авторизация пользователя",
              )
 async def login_user_post(user_info: UserDescriptionRecURL,
-                          response: Response):
+                          response: Response,
+                          db: DBDep):
     """
     ## Функция проверяет, что пользователь существует и может авторизоваться, при успехе происходит авторизация пользователя.
 
@@ -86,46 +90,51 @@ async def login_user_post(user_info: UserDescriptionRecURL,
 
     В текущей реализации статус завершения операции всегда один и тот же: OK
     """
-    async with async_session_maker() as session:
-        # Можно сделать специальный метод, но проще "заточить" в базовом
-        # классе репозитория BaseRepositoryMyCode метод get_one_or_none,
-        # чтобы его можно было настраивать на конкретную Pydantic схему.
-        # user = await UsersRepository(session).get_user_with_hashed_password(email=user_info.email)
-        user = await UsersRepository(session).get_one_or_none(pydantic_schema=UserWithHashedPasswordPydSchm,
-                                                              email=user_info.email)
-        # user - это Pydantic схема UserPydanticSchema
-        if not user:
-            # Пользователь с таким email уже имеется
-            # status_code=401: не аутентифицирован
-            raise HTTPException(status_code=401,
-                                detail="Пользователь с таким email не зарегистрирован")
 
-        if not AuthService().verify_password(user_info.password, user.hashed_password):
-            raise HTTPException(status_code=401,
-                                detail="Пароль не верный")
+    # Можно сделать специальный метод, но проще "заточить" в базовом
+    # классе репозитория BaseRepositoryMyCode метод get_one_or_none,
+    # чтобы его можно было настраивать на конкретную Pydantic схему.
+    # user = await UsersRepository(session).get_user_with_hashed_password(email=user_info.email)
+    user = await db.users.get_one_or_none(pydantic_schema=UserWithHashedPasswordPydSchm,
+                                          email=user_info.email)
+    # user - это Pydantic схема UserPydanticSchema
+    if not user:
+        # Пользователь с таким email уже имеется
+        # status_code=401: не аутентифицирован
+        raise HTTPException(status_code=401,
+                            detail="Пользователь с таким email не зарегистрирован")
 
-        # validity_period - словарь, ключи которого должны совпадать с параметрами функции:
-        # timedelta(days=0, seconds=0, microseconds=0,
-        #           milliseconds=0, minutes=0, hours=0, weeks=0)
-        # Можно не указывать значение validity_period:
-        # access_token = AuthService().create_access_token(data={"user_id": user.id})
-        # тогда длительность будет установлена по
-        # умолчанию: minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        validity_period = {"hours": 1, "minutes": 30}
-        access_token = AuthService().create_access_token(data={"user_id": user.id},
-                                                         validity_period=validity_period)
-        status = "OK"
-        response.set_cookie("access_token", access_token)  # отправили в куки
-    return {"status": status, "access_token": access_token}  # отправили клиенту
+    if not AuthService().verify_password(user_info.password, user.hashed_password):
+        raise HTTPException(status_code=401,
+                            detail="Пароль не верный")
+
+    # validity_period - словарь, ключи которого должны совпадать с параметрами функции:
+    # timedelta(days=0, seconds=0, microseconds=0,
+    #           milliseconds=0, minutes=0, hours=0, weeks=0)
+    # Можно не указывать значение validity_period:
+    # access_token = AuthService().create_access_token(data={"user_id": user.id})
+    # тогда длительность будет установлена по
+    # умолчанию: minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    validity_period = {"hours": 1, "minutes": 30}
+    access_token = AuthService().create_access_token(data={"user_id": user.id},
+                                                     validity_period=validity_period)
+    response.set_cookie("access_token", access_token)  # отправили в куки
+    return {"access_token": access_token}  # отправили клиенту
 
 
 @router.get("/get_me",
             summary="Получение информации о текущем авторизованном пользователе",
             )
-async def get_me_get(user_id: UserIdDep):
-    async with async_session_maker() as session:
-        user = await UsersRepository(session).get_id(object_id=user_id)
-    return user_id, user
+async def get_me_get(user_id: UserIdDep, db: DBDep):
+    # Определяем идентификатор пользователя
+    if not user_id:
+        # Пользователь не авторизовался
+        # status_code=401: не аутентифицирован
+        raise HTTPException(status_code=401,
+                            detail="Пользователь не авторизовался")
+
+    user = await db.users.get_id(object_id=user_id)
+    return {"user_id": user_id, "user": user}
 
 
 @router.delete("/logout",

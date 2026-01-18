@@ -14,36 +14,41 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.api.routers.auth import router as router_auth
 from src.api.routers.rooms import router as router_rooms
 from src.api.routers.hotels import router as router_hotels
+from src.api.routers.bookings import router as router_bookings
 
 
 """
-## Задание №11: Функционал номеров
-Необходимо создать API ручки для взаимодействия с номерами. По сути, 
-нужны все те же самые ручки, что мы делали для отелей (см. скриншот).
+## Задание № 12: Ручка для добавления бронирования
+Необходимо создать API ручку POST /bookings для добавления бронирования.
 
-Для этого нужны создать:
-- роутер и ручки
-- pydantic схемы
-- репозиторий
+Принимаемые данные:
+- date_from — дата заезда (только дата, без времени)
+- date_to — дата выезда (только дата, без времени)
+- room_id — id номера
 
-Давайте вынесем роутер с номерами в отдельный файл, чтобы 
-файл hotels.py не сильно распух :)
 
+Перед добавлением бронирования необходимо взять актуальную цену 
+номера из таблицы rooms (поле price).
+
+Напомню, что это задание предполагает создание новых:
+- роутера и ручки
+- pydantic схем
+- репозитория
+    
 Конкретизировано в видео:
-- Именование URL: /hotels/{hotel_id}/rooms/{rooms_id}
-- Необходимо реализовать для номеров:
-    1. Вывести информацию по всем номерам отеля
-    2. Выбрать инфо по конкретному номеру по id
-    3. Добавить номер с примерами данных
-    4. Изменять номер post
-    5. Изменять номер patch
-    6. Удалять номер
+
+Не принимаем цену, потому что будем считать её на 
+бэкэнде (получаем на уровне базы данных).
+Не принимаем user_id, потому что будем получать его из 
+авторизационных данных, из токена из куки.
+
+И затем уже перегонять данные в другую pydantic-схему.
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Задание №11: Функционал номеров",  # short summary of the API
-    "version": "ver. 0.11.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Задание № 12: Ручка для добавления бронирования",  # short summary of the API
+    "version": "ver. 0.12.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
@@ -85,6 +90,8 @@ tags_metadata = {
                    "Проверка JWT токенов онлайн - jwt.io</a>.</li>"
                    '<li><a href="https://restfulapi.net/resource-naming/" target="_blank">'
                    "REST API URI Naming Conventions and Best Practices</a>.</li>"
+                   '<li><a href="https://github.com/arthurio/fastapi-filter/blob/main/docs/index.md" target="_blank">'
+                   "FastAPI Filter</a>.</li>"
                    "</ul>"
                    'В методе API `delete("/hotels")` можно получить список удаляемых записей '
                    "через параметр "
@@ -113,6 +120,15 @@ https://fastapi.tiangolo.com/ru/tutorial/metadata/
 
 # В каком порядке указаны в openapi_tags записи - в таком они в документации и выводятся.
 openapi_tags = [
+    {
+        "name": router_bookings.tags[0],
+        "description": "Операции с бронированием номеров.",
+        "externalDocs":
+            {
+                "description": "Подробнее во внешней документации (www.example.com)",
+                "url": "https://www.example.com/",
+            }
+    },
     {
         "name": router_rooms.tags[0],
         "description": "Операции с номерами.",
@@ -147,6 +163,7 @@ app = FastAPI(**tags_metadata,
 app.include_router(router_auth)
 app.include_router(router_rooms)
 app.include_router(router_hotels)
+app.include_router(router_bookings)
 
 if __name__ == "__main__":
     uvicorn.run("main:app",

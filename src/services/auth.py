@@ -17,9 +17,9 @@ class AuthService:
         # По факту удаляется ранее добавленный в токен "мусор",
         # препятствующий использованию штатных "расшифровщиков".
         coded_token_token_lst = coded_token.split('.')
-        decode_token = (coded_token_token_lst[0][1:] + '.' +
-                        coded_token_token_lst[1][1:] + '.' +
-                        coded_token_token_lst[2][1:])
+        decode_token = (coded_token_token_lst[0][:-1] + '.' +
+                        coded_token_token_lst[1][:-1] + '.' +
+                        coded_token_token_lst[2][:-1])
         return decode_token
 
     def encrypt_token(self, token: str) -> str:
@@ -28,9 +28,9 @@ class AuthService:
         # По факту в токен добавляется некоторый "мусор",
         # препятствующий использованию штатных "расшифровщиков".
         token_lst = token.split('.')
-        coded_token = ('1' + token_lst[0] +
-                       '.2' + token_lst[1] +
-                       '.3' + token_lst[2])
+        coded_token = (token_lst[0] + '1.' +
+                       token_lst[1] + '2.' +
+                       token_lst[2] + '3')
         return coded_token
 
     # Упрощённый вариант:
@@ -82,6 +82,13 @@ class AuthService:
                               settings.JWT_SECRET_KEY,
                               algorithms=[settings.JWT_ALGORITHM])
         except jwt.exceptions.InvalidSignatureError:
+            # Пользователь не авторизовался
+            # status_code=401: не аутентифицирован
             raise HTTPException(status_code=401,
                                 detail="Не верный токен")
+        except jwt.exceptions.ExpiredSignatureError:
+            # Пользователь не авторизовался
+            # status_code=401: не аутентифицирован
+            raise HTTPException(status_code=401,
+                                detail="Истек срок действия подписи. Перелогиньтесь")
 

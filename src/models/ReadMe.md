@@ -13,6 +13,7 @@ alembic revision --autogenerate -m "001 Create table hotels"
 alembic revision --autogenerate -m "002 Create rooms hotels"
 alembic revision --autogenerate -m "003 Add users"
 alembic revision --autogenerate -m "004 Make email unique"
+alembic revision --autogenerate -m "005 Add bookings"
 ```
 
 Затем применяем миграции все не обработанные миграции:

@@ -74,13 +74,13 @@ class RoomPath(BaseModel):
                          )
 
 
-class RoomDescriptionRecURL(BaseModel):
+class HotelRoomPath(RoomPath, HotelPath):
+    pass
+
+
+class RoomDescrRecRequest(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # rooms (класс RoomsORM в файле src\models\rooms.py).
-    hotel_id: int = Field(description=room_descr["title"],
-                          ge=1,
-                          examples=[room_examples["hotel_id"]],
-                          )
     title: str = Field(description=room_descr["title"],
                        min_length=3,
                        examples=[room_examples["title"]],
@@ -98,7 +98,31 @@ class RoomDescriptionRecURL(BaseModel):
                           )
 
 
-class RoomDescriptionOptURL(RoomDescriptionRecURL):
+class RoomDescriptionRecURL(RoomDescrRecRequest):
+    # Поля указываем такие же, как именованы колонки в таблице
+    # rooms (класс RoomsORM в файле src\models\rooms.py).
+    hotel_id: int = Field(description=room_descr["title"],
+                          ge=1,
+                          examples=[room_examples["hotel_id"]],
+                          )
+    # title: str = Field(description=room_descr["title"],
+    #                    min_length=3,
+    #                    examples=[room_examples["title"]],
+    #                    )
+    # description: str = Field(description=room_descr["description"],
+    #                          min_length=10,
+    #                          # max_length=50,
+    #                          examples=[room_examples["description"]],
+    #                          )
+    # price: int = Field(ge=1,
+    #                    examples=[room_examples["price"]],
+    #                    )
+    # quantity: int = Field(ge=1,
+    #                       examples=[room_examples["quantity"]],
+    #                       )
+
+
+class RoomDescrOptRequest(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # rooms (класс RoomsORM в файле src\models\rooms.py).
     #
@@ -106,11 +130,6 @@ class RoomDescriptionOptURL(RoomDescriptionRecURL):
     # а не все поля сразу. Поэтому для полей устанавливается
     # возможность при определении типа поля, например: str | None
     # и указывается значение по умолчанию: default=None
-    hotel_id: int | None = Field(default=None,
-                                 description=room_descr["title"],
-                                 ge=1,
-                                 examples=[room_examples["hotel_id"]],
-                                 )
     title: str | None = Field(default=None,
                               description=room_descr["title"],
                               min_length=3,
@@ -130,6 +149,40 @@ class RoomDescriptionOptURL(RoomDescriptionRecURL):
                                  ge=1,
                                  examples=[room_examples["quantity"]],
                                  )
+
+
+class RoomDescriptionOptURL(RoomDescrOptRequest):
+    # Поля указываем такие же, как именованы колонки в таблице
+    # rooms (класс RoomsORM в файле src\models\rooms.py).
+    #
+    # Этот класс используется, когда надо обновить КАКИЕ-то поля,
+    # а не все поля сразу. Поэтому для полей устанавливается
+    # возможность при определении типа поля, например: str | None
+    # и указывается значение по умолчанию: default=None
+    hotel_id: int | None = Field(default=None,
+                                 description=room_descr["title"],
+                                 ge=1,
+                                 examples=[room_examples["hotel_id"]],
+                                 )
+    # title: str | None = Field(default=None,
+    #                           description=room_descr["title"],
+    #                           min_length=3,
+    #                           examples=[room_examples["title"]],
+    #                           )
+    # description: str | None = Field(default=None,
+    #                                 description=room_descr["description"],
+    #                                 min_length=10,
+    #                                 # max_length=50,
+    #                                 examples=[room_examples["description"]],
+    #                                 )
+    # price: int | None = Field(default=None,
+    #                           ge=1,
+    #                           examples=[room_examples["price"]],
+    #                           )
+    # quantity: int | None = Field(default=None,
+    #                              ge=1,
+    #                              examples=[room_examples["quantity"]],
+    #                              )
 
 
 class RoomBase(BaseModel):
@@ -156,3 +209,11 @@ class RoomPydanticSchema(RoomBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+# async def change_room_hotel_id_put(hotelroom: Annotated[HotelRoomPath, Path()],
+#                                    room_params: Annotated[RoomDescrRecRequest,
+#                                                           Body()],
+#                                    db: DBDep,
+#                                    ):
+#     _room_params = RoomDescriptionRecURL(hotel_id=hotelroom.hotel_id,
+#                                          **room_params.model_dump())

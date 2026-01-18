@@ -3,15 +3,19 @@ from typing import Annotated, Union
 from fastapi import Depends, Query, Request, HTTPException
 from pydantic import BaseModel
 
+from src.api.dependencies.dependencies_consts import pagination_pages
+from src.database import async_session_maker
 from src.services.auth import AuthService
+from src.utils.db_manager import DBManager
 
+# src\api\dependencies\dependencies-consts.py
 # alias="per-page" - позволяет в адресной строке можно указать варианты:
 # - http://127.0.0.1:8000/items/?per_page=    это определяется параметром per_page
 # - http://127.0.0.1:8000/items/?per-page=    это определяется alias="per-page"
 
-pagination_pages = {"page": 1,
-                    "per_page": 3,
-                    }
+# pagination_pages = {"page": 1,
+#                     "per_page": 3,
+#                     }
 
 
 # Класс определяет пагинацию, включающую только вывод по страницам
@@ -56,3 +60,17 @@ def get_current_user_id(token: str = Depends(get_token)) -> Union[int, None]:
 
 
 UserIdDep = Annotated[int, Depends(get_current_user_id)]
+
+
+def get_db_manager():
+    return DBManager(session_factory=async_session_maker)
+
+
+async def get_db():
+    # Можно не использовать функцию get_db_manager(), а сразу написать:
+    # async with DBManager(session_factory=async_session_maker) as db:
+    async with get_db_manager() as db:
+        yield db
+
+
+DBDep = Annotated[DBManager, Depends(get_db)]

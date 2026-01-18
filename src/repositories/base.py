@@ -1,13 +1,19 @@
 from typing import Union
 
 from sqlalchemy import select, insert, update, delete
+from sqlalchemy import select as sa_select  # Для реализации SQL команды SELECT
+from sqlalchemy import insert as sa_insert  # Для реализации SQL команды INSERT
+from sqlalchemy import update as sa_update  # Для реализации SQL команды UPDATE
+from sqlalchemy import delete as sa_delete  # Для реализации SQL команды DELETE
+
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies.dependencies import pagination_pages
 # from src.database import engine
 
 # engine нужен, чтобы использовать диалект SQL:
-# add_stmt = (insert(self.model)
+# add_stmt = (sa_insert(self.model)
 #             # .returning(self.model)
 #             .values(**added_data.model_dump()
 #                     )
@@ -20,47 +26,6 @@ from src.api.dependencies.dependencies import pagination_pages
 # #        VALUES ('title_string', 'location_string')
 # #        RETURNING hotels.id
 
-# from src.schemas.hotels import HotelPydanticSchema
-
-
-# BaseRepositoryLesson - код репозитария из урока.
-# В уроке назывался class BaseRepository:
-class BaseRepositoryLesson:
-    model = None
-
-    def __init__(self, session):
-        self.session = session
-
-    async def get_all(self, *args, **kwargs):
-        query = select(self.model)
-        result = await self.session.execute(query)
-        return result.scalars().all()
-
-    async def get_one_or_none(self, **filter_by):
-        query = select(self.model).filter_by(**filter_by)
-        result = await self.session.execute(query)
-        return result.scalars().one_or_none()
-
-    async def add(self, data: BaseModel):
-        add_data_stmt = insert(self.model).values(**data.model_dump()).returning(self.model)
-        result = await self.session.execute(add_data_stmt)
-        return result.scalars().one()
-
-    async def edit(self, data: BaseModel, exclude_unset: bool = False, **filter_by) -> None:
-        update_stmt = (
-            update(self.model)
-            .filter_by(**filter_by)
-            .values(**data.model_dump(exclude_unset=exclude_unset))
-        )
-        await self.session.execute(update_stmt)
-
-    async def delete(self, **filter_by) -> None:
-        delete_stmt = delete(self.model).filter_by(**filter_by)
-        await self.session.execute(delete_stmt)
-
-
-# BaseRepositoryMyCode - мой код репозитария.
-# В уроке назывался class BaseRepository
 
 # Использование конструкции в родительском классе для изменения атрибута класса:
 #         BaseRepositoryMyCode.model = model  # Атрибут класса
@@ -131,16 +96,11 @@ class BaseRepositoryLesson:
 #     model = HotelsORM
 #     ...
 
-class BaseRepositoryMyCode:
+class BaseRepository:
     model = None
     schema: BaseModel = None
 
-    # def __init__(self, session, model):
-    #     self.session = session
-    #     # self.model = model  # Атрибут экземпляра класса
-    #     BaseRepositoryMyCode.model = model  # Атрибут класса
-
-    def __init__(self, session):
+    def __init__(self, session: AsyncSession):
         self.session = session
 
     async def get_rows(self, *args,
@@ -179,6 +139,7 @@ class BaseRepositoryMyCode:
                 основываясь на порядке в базе данных (False или None).
                 Может отсутствовать.
         :param kwargs: Возможные иные именованные аргументы (не используются).
+
         :return: Возвращает пустой список: [] или список из выбранных строк:
                 [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
                  HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
@@ -187,7 +148,7 @@ class BaseRepositoryMyCode:
         """
 
         if query is None:
-            query = select(self.model)
+            query = sa_select(self.model)
 
         if not show_all:
             limit = per_page
@@ -215,6 +176,7 @@ class BaseRepositoryMyCode:
         # Так как в Pydantic-схеме HotelPydanticSchema добавили параметр
         # model_config = ConfigDict(from_attributes=True)
         # то по умолчанию будет использоваться значение from_attributes=True
+
         result_pydantic_schema = [self.schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # return result.scalars().all()
@@ -228,7 +190,7 @@ class BaseRepositoryMyCode:
         :param kwargs: Возможные иные именованные аргументы (не используются).
         :return: Возвращает список, содержащий добавленный объект.
         """
-        # add_stmt = (insert(self.model)
+        # add_stmt = (sa_insert(self.model)
         #             # .returning(self.model)
         #             .values(**added_data.model_dump()
         #                     )
@@ -240,7 +202,7 @@ class BaseRepositoryMyCode:
         # # Вывод: INSERT INTO hotels (title, location)
         # #        VALUES ('title_string', 'location_string')
         # #        RETURNING hotels.id
-        add_stmt = (insert(self.model)
+        add_stmt = (sa_insert(self.model)
                     .returning(self.model)
                     .values(**added_data.model_dump()
                             )
@@ -288,13 +250,13 @@ class BaseRepositoryMyCode:
                 ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
                Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
-        # edit_stmt = (update(self.model)
+        # edit_stmt = (sa_update(self.model)
         #              .filter_by(**filtering)
         #              .values(**edited_data.model_dump(exclude_unset=exclude_unset))
         #              .returning(self.model)
         #              )
         if edit_stmt is None:
-            edit_stmt = update(self.model)
+            edit_stmt = sa_update(self.model)
         edit_stmt = (edit_stmt
                      .filter_by(**filtering)
                      .values(**edited_data.model_dump(exclude_unset=exclude_unset))
@@ -380,13 +342,21 @@ class BaseRepositoryMyCode:
         :param filtering: Значения фильтра для выборки объекта. Используется
             фильтр только на точное равенство: filter_by(**filtering), который
             преобразуется в конструкцию (для примера): WHERE hotels.id = 188
-        :return: Возвращает объект sqlalchemy.engine.result.ChunkedIteratorResult.
-            Для получения конкретного объекта требуется сделать, например,
-            оператор result.scalars().all().
+        :return: Возвращает
+            - пустой список: []
+             или
+            - список:
+              [HotelPydanticSchema(title='title_string_1',
+                                   location='location_string_1', id=16),
+               HotelPydanticSchema(title='title_string_2',
+                                   location='location_string_2', id=17),
+               ..., HotelPydanticSchema(title='title_string_N',
+                                        location='location_string_N', id=198)]
+              Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
-        # delete_stmt = delete(self.model).filter_by(**filtering).returning(self.model)
+        # delete_stmt = sa_delete(self.model).filter_by(**filtering).returning(self.model)
         if delete_stmt is None:
-            delete_stmt = delete(self.model)
+            delete_stmt = sa_delete(self.model)
         # print(delete_stmt.compile(compile_kwargs={"literal_binds": True}))
         delete_stmt = delete_stmt.filter_by(**filtering).returning(self.model)
         # print(delete_stmt.compile(compile_kwargs={"literal_binds": True}))
@@ -467,27 +437,35 @@ class BaseRepositoryMyCode:
             return result_pydantic_schema
         return None
 
-    async def get_id(self, object_id: Union[int | None] = None):  # -> None:
+    async def get_id(self, object_id: int):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get.
 
         :param object_id: Идентификатор выбираемого объекта.
+        :param pydantic_schema: Схема Pydantic, к которой надо преобразовывать
+            итоговый результат. Если не задано (PydanticSchema=None), то
+            принимает значение по умолчанию: self.schema
+
         :return: Возвращает None или объект, преобразованный к схеме Pydantic: self.schema.
         """
+
         result = await self.session.get(self.model, object_id)
         # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
         # return result
         # Шаг 4: Преобразование объекта SQLAlchemy в Pydantic
         if result:
             # result_pydantic_schema = self.schema.model_validate(result, from_attributes=True)
+
             result_pydantic_schema = self.schema.model_validate(result)
             # Получаем элемент HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16).
             # Тип возвращаемого элемента преобразован к схеме Pydantic: self.schema
             return result_pydantic_schema
         return None
 
-    async def get_one_or_none(self, query=None, pydantic_schema=None, **filtering):  # -> None:
+    async def get_one_or_none(self, query=None,
+                              pydantic_schema=None,
+                              **filtering):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get.
@@ -513,7 +491,7 @@ class BaseRepositoryMyCode:
             pydantic_schema = self.schema
 
         if query is None:
-            query = select(self.model)
+            query = sa_select(self.model)
         query = query.filter_by(**filtering)
 
         result = await self.session.execute(query)
@@ -540,17 +518,3 @@ class BaseRepositoryMyCode:
             return result_pydantic_schema
         return None
 
-# BaseRepository = BaseRepositoryLesson
-BaseRepository = BaseRepositoryMyCode
-
-# query = kwargs.get('query',
-#                    select(BaseRepositoryMyCode.model))
-
-# offset = (page - 1) * per_page
-# offset = kwargs.get('offset',
-#                     (pagination_pages["page"] - 1) * pagination_pages["per_page"])
-# limit = per_page
-# limit = kwargs.get('limit',
-#                    pagination_pages["per_page"])
-
-# show_all = kwargs.get('show_all', None)
