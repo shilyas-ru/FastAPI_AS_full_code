@@ -7,7 +7,7 @@ from sqlalchemy import select as sa_select  # Для реализации SQL к
 from sqlalchemy import delete as sa_delete  # Для реализации SQL команды DELETE
 
 from src.api.dependencies.dependencies import DBDep, PaginationAllDep, PaginationPagesAllParams
-from src.schemas.facilities import FacilityDescriptionRecURL
+from src.schemas.facilities import FacilityDescriptionRecRequest
 
 # from src.schemas.facilities import
 
@@ -59,7 +59,7 @@ openapi_examples_dict = {"1": {"summary": "Кабельный интернет",
              description="Тут будет описание параметров метода",
              )
 async def create_facility_post(db: DBDep,
-                               facility_caption: Annotated[FacilityDescriptionRecURL,
+                               facility_caption: Annotated[FacilityDescriptionRecRequest,
                                                            Body(openapi_examples=openapi_examples_dict)]):
     """
     ## Функция создаёт запись.

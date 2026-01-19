@@ -4,10 +4,10 @@
 <br><br><br><br>
 Описательные файлы (общие по всем коммитам):
 - Выполняемое задание (формулировка задания и его решение) описывается в файле "[task.md](task.md)".
+- Созданные таблицы в базе данных можно посмотреть на картинке "[tables_in_database.png](tables_in_database.png)".
 - Описание структуры файлов и папок в проекте - см. файл "[project_structure.md](project_structure.md)".
 - Описание настройки Alembic - см. файл "[ReadMe_configuring_Alembic.txt](ReadMe_configuring_Alembic.txt)".
 - Краткая справка по командам alembic - см. файл "[src/models/ReadMe.md](src/models/ReadMe.md)" 
-- Созданные таблицы в базе данных можно посмотреть на картинке "[tables_in_database.png](tables_in_database.png)".
 
 ## Уведомления
 1. Код учебный, то есть:

@@ -87,15 +87,15 @@ class PaginationPagesAllParams(PaginationPagesParams):
     # надо использовать:
     # PaginationPagesDep = Annotated[PaginationPagesAllParams, Depends()]
     #
-    all_objects: bool = Field(Query(alias="all-objects",
-                                    description="Отображать весь список сразу (True), игнорируя "
-                                                "параметры page и per-page,<br>"
-                                                "или делать вывод постранично (False или None), "
-                                                "учитывая параметры page и per-page.<br>"
-                                                "<b><i>Может отсутствовать.</i></b>",
-                                    default=None,
-                                    )
-                              )
+    all_objects: bool | None = Field(Query(default=None,
+                                           alias="all-objects",
+                                           description="Отображать весь список сразу (True), игнорируя "
+                                                       "параметры page и per-page,<br>"
+                                                       "или делать вывод постранично (False или None), "
+                                                       "учитывая параметры page и per-page.<br>"
+                                                       "<b><i>Может отсутствовать.</i></b>",
+                                           )
+                                     )
 
 # Set description for query parameter in swagger doc using Pydantic model (FastAPI)
 # https://stackoverflow.com/questions/64364499/set-description-for-query-parameter-in-swagger-doc-using-pydantic-model-fastapi
@@ -103,6 +103,7 @@ class PaginationPagesAllParams(PaginationPagesParams):
 # https://stackoverflow.com/questions/75998227/how-to-define-query-parameters-using-pydantic-model-in-fastapi
 # Вывод:
 # To add description, title, etc., to query parameters, you could wrap the Query() in a Field().
+# Чтобы добавить описание, заголовок и т.д. к параметрам запроса, вы можете обернуть Query() в Field()
 
 
 # Используется, если поля описывать как - page: int = Field(Query(ge=1,...

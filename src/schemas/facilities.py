@@ -10,7 +10,7 @@ hotel_examples = {"title": "Название отеля",
                   }
 
 
-class FacilityDescriptionRecURL(BaseModel):
+class FacilityDescriptionRecRequest(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
     # hotels (класс HotelsORM в файле src\models\hotels.py).
     title: str = Field(description=hotel["title"],
@@ -26,6 +26,22 @@ class FacilityBase(BaseModel):
 
 
 class FacilityPydanticSchema(FacilityBase):
+    # Эта схема должна иметь такие же поля, как указаны в схеме
+    # для удобств - facilities (класс FacilitiesORM в файле src\models\facilities.py).
+    # Поле title наследуем от родителя.
+    id: int = Field()
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoomsFacilityBase(BaseModel):
+    # Поля указываем такие же, как именованы колонки в таблице
+    # facilities (класс FacilitiesORM в файле src\models\facilities.py).
+    room_id: int = Field()
+    facility_id: int = Field()
+
+
+class RoomsFacilityPydanticSchema(FacilityBase):
     # Эта схема должна иметь такие же поля, как указаны в схеме
     # для удобств - facilities (класс FacilitiesORM в файле src\models\facilities.py).
     # Поле title наследуем от родителя.

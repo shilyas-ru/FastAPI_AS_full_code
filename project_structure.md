@@ -2,11 +2,8 @@
 
 ```
 Project
-├── .env            Содержит описание переменных окружения. 
-│                   Этот файл никому не показывать, на
-│                   гитхаб не выкладывать.
-├── .env-example    Текстовый файл, который содержит переменные 
-│                   окружения с примером заполнения.
+├── .env        Содержит описание переменных окружения. 
+│               Этот файл никому не показывать, на гитхаб не выкладывать.
 ├── .gitignore      Какие файлы запрещено загружать на гитхаб
 ├── alembic.ini     Файл с настройками alembic
 │                   В нём указан путь до папки с миграциями:
@@ -21,15 +18,16 @@ Project
 │                   black.type = console_scripts
 │                   black.entrypoint = black
 │                   black.options = -l 79 REVISION_SCRIPT_FILENAME
-│                   В последней строке меняем 79 на 88 – это количество символов в строке.
+│                   В последней строке меняем 79 на 88 – это количество 
+│                   символов в строке.
 │                   - Раскомментируем строку 12:
 │                   file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
 ├── http_errors_statuses.txt        Описание http кодов ошибок, которые могут 
 │                                   использоваться. Для справки.
-├── project_structure.md            Этот файл.
-├── requirements.txt                Пакеты для установки.
-├── variables_abbreviations_and_naming.md    Сокращения, используемые при
-│                                            именовании переменных и функций.
+├── project_structure.md            Этот файл
+├── variables_abbreviations_and_naming.md       Используемые сокращения 
+│                                               и наименования
+├── requirements.txt        Пакеты для установки
 ├── src
 │   ├── config.py       Импорт переменных окружения из файла .env и 
 │   │                   подготавливает их для использования в программе.
@@ -37,25 +35,33 @@ Project
 │   ├── main.py         Файл запуска приложения
 │   ├── api: файлы приложения
 │   │   ├── dependencies
-│   │   │   ├── dependencies.py     Часто используемые классы (в моём 
-│   │   │   │                       случае - описание пагинации).
-│   │   │   ├── dependencies_consts.py     Константы, используемые в зависимостях 
+│   │   │   ├── dependencies.py     Часто используемые классы в разных 
+│   │   │   │                       файлах приложения.
+│   │   │   ├── dependencies_consts.py     Константы, используемые в 
+│   │   │   │                              зависимостях 
 │   │   ├── routers
-│   │   │   ├── auth.py             Обработка конечных точек FastAPI для пользователей
-│   │   │   ├── bookings.py         Обработка конечных точек FastAPI для бронирования номеров
-│   │   │   ├── facilities.py       Обработка конечных точек FastAPI для удобств в номерах
-│   │   │   ├── hotels.py           Обработка конечных точек FastAPI для отелей
-│   │   │   ├── rooms.py            Обработка конечных точек FastAPI для номеров
+│   │   │   ├── auth.py             Обработка конечных точек FastAPI для 
+│   │   │   │                       пользователей
+│   │   │   ├── bookings.py         Обработка конечных точек FastAPI для 
+│   │   │   │                       бронирования номеров
+│   │   │   ├── facilities.py       Обработка конечных точек FastAPI для 
+│   │   │   │                       удобств в номерах
+│   │   │   ├── hotels.py           Обработка конечных точек FastAPI для 
+│   │   │   │                       отелей
+│   │   │   ├── rooms.py            Обработка конечных точек FastAPI для 
+│   │   │   │                       номеров
 │   ├── migration: файлы для миграций
 │   │   ├── env.py          Настройки alembic
-│   │   │                   - Добавляем код с новыми моделями (пример для модели RoomsORM)
-│   │   │                     (from src.models.rooms import RoomsORM)
+│   │   │                   - Добавляем код с новыми моделями (пример для 
+│   │   │                     модели RoomsORM):
+│   │   │                       from src.models.rooms import RoomsORM
 │   │   │                   - Изменяем код для обработки метаданных
-│   │   │                     (from src.database import Base
-│   │   │                     target_metadata = Base.metadata)
-│   │   │                   - Устанавливаем параметр для правильной обработки миграций:
-│   │   │                     config.set_main_option("sqlalchemy.url", 
-│   │   │                                            f"{settings.DB_URL}?async_fallback=True")
+│   │   │                       from src.database import Base
+│   │   │                       target_metadata = Base.metadata
+│   │   │                   - Устанавливаем параметр для правильной 
+│   │   │                     обработки миграций:
+│   │   │                       config.set_main_option("sqlalchemy.url", 
+│   │   │                                              f"{settings.DB_URL}?async_fallback=True")
 │   │   ├── README
 │   │   ├── script.py.mako
 │   │   ├── versions        файлы со сгенерированным кодом для миграций
@@ -111,7 +117,8 @@ Project
 
  1. Код проекта находится в папке src.
 
- 2. Сначала написан код для обработки конечных точек FastAPI для работы с отелями:
+ 2. Сначала написан код для обработки конечных точек FastAPI для работы 
+    с отелями:
     - src/main.py - файл запуска приложения.
     - файлы с кодом:
         - src/api/routers/hotels.py: обработка конечных точек FastAPI.
@@ -237,8 +244,10 @@ Project
 14. Добавлено бронирование отелей.
     - Создан файл src\models\bookings.py с моделью для бронирования.
     - Дополнен файл \src\migration\env.py информацией о модели бронирования.
-    - Создан файл src\migration\versions\2025_01_21_1915-66aead272fb4_005_add_bookings.py
-    - Создана таблица бронирования - см. картинку в файле tables_in_database.png.
+    - Создан файл миграций:
+      src\migration\versions\2025_01_21_1915-66aead272fb4_005_add_bookings.py
+    - Создана таблица бронирования - см. картинку в файле 
+      tables_in_database.png.
     - Создан файл src\repositories\bookings.py с классом репозитария для 
       бронирования номеров, дочернего базовому.
     - Создан файл src\schemas\bookings.py со схемами данных для бронирования 
@@ -258,8 +267,10 @@ Project
           добавлена в него функция rooms_ids_for_booking_query для формирования 
           SQL-запроса на поиск свободных 
           номеров по всем отелям или для конкретного отеля.
-        - В репозитории HotelsRepository добавлен метод create_stmt_for_selection.
-        - В репозитории RoomsRepository добавлен метод create_stmt_for_selection.
+        - В репозитории HotelsRepository добавлен метод 
+          create_stmt_for_selection.
+        - В репозитории RoomsRepository добавлен метод 
+          create_stmt_for_selection.
         - В репозитории HotelsRepository изменен метод get_limit - добавлена 
           возможность выбирать отели со свободными номерами.
         - В репозитории RoomsRepository изменен метод get_limit - добавлена 
@@ -296,7 +307,7 @@ Project
               show_facilities_in_rooms_get
         - Делаем Pydantic-схемы. Создаём файл src\schemas\facilities.py для 
           схем. В нём создаём нужные схемы:
-            - class FacilityDescriptionRecURL(BaseModel).
+            - class FacilityDescriptionRecRequest(BaseModel).
             - class FacilityBase(BaseModel).
             - class FacilityPydanticSchema(FacilityBase).
         - Делаем репозиторий. Создаём файл src\repositories\facilities.py, 
@@ -324,5 +335,49 @@ Project
         - Было: PaginationPagesAllParams.all_hotels.
         - Стало: PaginationPagesAllParams.all_objects.
 
-
-
+17. Добавляем работу с таблицей rooms_facilities (таблица many-to-many).
+    - Добавляем данные в таблицу rooms_facilities (модель RoomsFacilitiesORM 
+      в файле src\models\facilities.py). Делаем, чтобы при добавлении нового 
+      номера можно было сразу добавить список удобств, находящихся в этом 
+      номере:
+        - В схеме номеров (файл src\schemas\rooms.py) в Pydantic-схемах, 
+          которые обеспечивают получение данных с сайта (схемы в имени которых 
+          присутствует `Request`, применяемые для организации query и body 
+          параметров) добавляем поле - список из идентификаторов удобств:
+            - В class RoomDescrRecRequest(BaseModel):
+                - поле: facilities_ids: list[int]
+            - В class RoomDescrOptRequest(BaseModel):
+                - поле: facilities_ids: list[int] | None = None
+        - Делаем Pydantic-схемы для отношения rooms_facilities. В файле 
+          src\schemas\facilities.py для схем. В нём создаём нужные схемы:
+            - class RoomsFacilityBase(BaseModel).
+            - class RoomsFacilityPydanticSchema(FacilityBase).
+        - Делаем репозиторий. В файле src\repositories\facilities.py, 
+          создаём:
+            - Создали класс class RoomsFacilitiesRepository(BaseRepository) с 
+              атрибутами:
+                - model = RoomsFacilitiesORM.
+                - schema = RoomsFacilityPydanticSchema.
+            - Создали метод класса:
+                - .
+        - Добавляем в src\utils\db_manager.py:
+            - В методе `async def __aenter__` добавляем: 
+              self.rooms_facilities = RoomsFacilitiesRepository(self.session).
+        - Добавляем в файле src\repositories\base.py в базовом репозитории 
+          BaseRepository метод add_bulk для создания сразу многих данных.
+        - Добавляем информацию о facilities в примеры openapi_examples_dict в 
+          файле src\api\routers\rooms.py.
+        - Редактируем в файле src\api\routers\rooms.py функцию для создания
+          номеров: `create_room_post`, добавляя указанные удобства в таблицу 
+          rooms_facilities.
+    - Добавляем в методы изменения информации о номере возможность добавлять, 
+      редактировать и удалять информацию об удобствах:
+        - Изменяем репозиторий. В файле src\repositories\facilities.py в
+          классе RoomsFacilitiesRepository создаём метод для обработки 
+          списка удобств: `set_facilities_in_rooms_values`.
+        - Редактируем в файле src\api\routers\rooms.py функции для изменения 
+          информации о номере:
+            - `change_room_put`,
+            - `change_room_hotel_id_put`,
+            - `change_room_patch`,
+            - `change_room_hotel_id_patch`.

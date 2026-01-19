@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies.dependencies_consts import pagination_pages
 
 
-# from src.database import engine
+from src.database import engine
 
 # engine нужен, чтобы использовать диалект SQL:
 # add_stmt = (sa_insert(self.model)
@@ -292,10 +292,66 @@ class BaseRepository:
         # result_pydantic_schema = [self.schema.model_validate(row_model,
         #                                                      from_attributes=True)
         #                           for row_model in result.scalars().all()]
-        result_pydantic_schema = [self.schema.model_validate(row_model)
-                                  for row_model in result.scalars().all()]
+        # result_pydantic_schema = [self.schema.model_validate(row_model)
+        #                           for row_model in result.scalars().all()]
         # return result.scalars().all()
+        # return result_pydantic_schema
+        model = result.scalars().one()
+        result_pydantic_schema = self.schema.model_validate(model)
         return result_pydantic_schema
+
+    async def add_bulk(self, added_data: list[BaseModel], **kwargs):
+        """
+        Метод класса. Добавляет один объект в базу, используя метод insert.
+
+        :param added_data: Добавляемые данные.
+        :param kwargs: Возможные иные именованные аргументы (не используются).
+        :return: Возвращает список, содержащий добавленный объект.
+        """
+        if added_data == []:
+            return
+
+        add_stmt = (sa_insert(self.model)
+                    # .returning(self.model)
+                    .values([item.model_dump() for item in added_data]
+                            )
+                    )
+        # print(add_stmt.compile(compile_kwargs={"literal_binds": True}))
+        # Вывод: INSERT INTO rooms_facilities (room_id, facility_id)
+        #        VALUES (:room_id_m0, :facility_id_m0),
+        #               (:room_id_m1, :facility_id_m1)
+        #
+        #        INSERT INTO rooms_facilities (room_id, facility_id)
+        #        VALUES (51, 1), (51, 2)
+        # add_stmt = (sa_insert(self.model)
+        #             .returning(self.model)
+        #             .values([item.model_dump() for item in added_data]
+        #                     )
+        #             )
+        # print(add_stmt.compile(compile_kwargs={"literal_binds": True}))
+        # Вывод: INSERT INTO rooms_facilities (room_id, facility_id)
+        #        VALUES (:room_id_m0, :facility_id_m0),
+        #               (:room_id_m1, :facility_id_m1)
+        #        RETURNING rooms_facilities.id,
+        #                  rooms_facilities.room_id,
+        #                  rooms_facilities.facility_id
+        #
+        #        INSERT INTO rooms_facilities (room_id, facility_id)
+        #        VALUES (52, 1), (52, 2)
+        #        RETURNING rooms_facilities.id,
+        #                  rooms_facilities.room_id,
+        #                  rooms_facilities.facility_id
+
+        # result = await self.session.execute(add_stmt)
+        # result: <sqlalchemy.engine.result.ChunkedIteratorResult object at 0x0000015D085105D0>
+        await self.session.execute(add_stmt)
+        # result_pydantic_schema = [self.schema.model_validate(row_model,
+        #                                                      from_attributes=True)
+        #                           for row_model in result.scalars().all()]
+        # result_pydantic_schema = [self.schema.model_validate(row_model)
+        #                           for row_model in result.scalars().all()]
+        # return result.scalars().all()
+        # return result_pydantic_schema
 
     async def edit(self,
                    edited_data: BaseModel,

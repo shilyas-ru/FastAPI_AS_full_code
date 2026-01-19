@@ -13,13 +13,15 @@ room_descr = {"hotel_id": "Идентификатор отеля, в котор�
               "description": "Описание номера",
               "price": "Цена номера",
               "quantity": "Общее количество номеров такого типа",
+              "facilities_ids": "Список из идентификаторов удобств",
               }
 
-room_examples = {"hotel_id": 1,  # int, Идентификатор отеля, в котором находится комната
+room_examples = {"hotel_id": 214,  # int, Идентификатор отеля, в котором находится комната
                  "title": "Название номера",  # String(length=100)
                  "description": "Описание номера",  # str
                  "price": 2,  # int, Цена номера
                  "quantity": 3,  # int, Общее количество номеров такого типа
+                 "facilities_ids": []  # list[int] | [], Список из идентификаторов удобств
                  }
 
 """
@@ -96,6 +98,9 @@ class RoomDescrRecRequest(BaseModel):
     quantity: int = Field(ge=1,
                           examples=[room_examples["quantity"]],
                           )
+    # Список из идентификаторов удобств
+    facilities_ids: list[int] = Field(examples=[room_examples["facilities_ids"]])
+    # facilities_ids: list[int] = []
 
 
 class RoomDescriptionRecURL(RoomDescrRecRequest):
@@ -149,6 +154,11 @@ class RoomDescrOptRequest(BaseModel):
                                  ge=1,
                                  examples=[room_examples["quantity"]],
                                  )
+    # Список из идентификаторов удобств
+    # facilities_ids: list[int] = []
+    facilities_ids: list[int] = Field(default=[],
+                                      examples=[room_examples["facilities_ids"]]
+                                      )
 
 
 class RoomDescriptionOptURL(RoomDescrOptRequest):
@@ -187,7 +197,7 @@ class RoomDescriptionOptURL(RoomDescrOptRequest):
 
 class RoomBase(BaseModel):
     # Поля указываем такие же, как именованы колонки в таблице
-    # hotels (класс HotelsORM в файле src\models\hotels.py).
+    # rooms (класс RoomsORM в файле src\models\rooms.py).
     # Если не указать значение None, как возможный вариант, то при
     # конвертации в эту схему некоторой модели, имеющей пустые поля,
     # будет ошибка (в поле description ничего нет, т.е., значение None):
@@ -204,8 +214,8 @@ class RoomBase(BaseModel):
 
 class RoomPydanticSchema(RoomBase):
     # Эта схема должна иметь такие же поля, как указаны в схеме
-    # для отелей - hotels (класс HotelsORM в файле src\models\hotels.py).
-    # Поля title и location наследуем от родителя.
+    # для отелей - rooms (класс RoomsORM в файле src\models\rooms.py).
+    # Поле title и прочие поля наследуем от родителя.
     id: int
 
     model_config = ConfigDict(from_attributes=True)

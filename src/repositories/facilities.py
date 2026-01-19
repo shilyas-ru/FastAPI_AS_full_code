@@ -16,8 +16,8 @@ from sqlalchemy import Insert as sa_Insert  # Тип функции sa_insert
 
 from src.repositories.base import BaseRepository
 
-from src.models.facilities import FacilitiesORM
-from src.schemas.facilities import FacilityPydanticSchema
+from src.models.facilities import FacilitiesORM, RoomsFacilitiesORM
+from src.schemas.facilities import FacilityPydanticSchema, RoomsFacilityPydanticSchema
 
 
 # from src.database import engine
@@ -110,3 +110,34 @@ class FacilitiesRepository(BaseRepository):
                   f"Всего выводится {len(result)} элемент(-а/-ов) на странице.")
         return {"status": status, "facilities": result}
 
+
+class RoomsFacilitiesRepository(BaseRepository):
+    model = RoomsFacilitiesORM
+    schema = RoomsFacilityPydanticSchema
+
+    async def set_facilities_in_rooms_values(self,
+                                             room_id: int,
+                                             facilities_ids: list[int]):
+        get_facilities_ids_query = (sa_select(self.model.facility_id)
+                                    .filter_by(room_id=room_id)
+                                    )
+        result = await self.session.execute(get_facilities_ids_query)
+        current_facilities_ids = result.scalars().all()
+        items_to_delete = list(set(current_facilities_ids) - set(facilities_ids))
+        items_to_insert = list(set(facilities_ids) - set(current_facilities_ids))
+
+        if items_to_delete:
+            delete_facilities_from_room_stmt = (sa_delete(self.model)
+                                                .filter(self.model.room_id == room_id,
+                                                        self.model.facility_id.in_(items_to_delete),
+                                                        )
+                                                )
+            await self.session.execute(delete_facilities_from_room_stmt)
+
+        if items_to_insert:
+            insert_facilities_in_room_stmt = (sa_insert(self.model)
+                                              .values([{"room_id": room_id, "facility_id": f_id}
+                                                       for f_id in items_to_insert]
+                                                      )
+                                              )
+            await self.session.execute(insert_facilities_in_room_stmt)

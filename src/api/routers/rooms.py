@@ -7,8 +7,9 @@ from sqlalchemy import select as sa_select  # Для реализации SQL к
 from sqlalchemy import delete as sa_delete  # Для реализации SQL команды DELETE
 
 from src.api.dependencies.dependencies import DBDep, PaginationAllDep, PaginationPagesDep
+from src.schemas.facilities import RoomsFacilityBase
 
-from src.schemas.rooms import RoomPath, HotelRoomPath, HotelPath
+from src.schemas.rooms import RoomPath, HotelRoomPath, HotelPath, RoomPydanticSchema, RoomBase
 from src.schemas.rooms import RoomDescriptionRecURL, RoomDescrRecRequest
 from src.schemas.rooms import RoomDescriptionOptURL, RoomDescrOptRequest
 
@@ -99,19 +100,25 @@ router = APIRouter(prefix="/hotels", tags=["Номера"])
 
 
 openapi_examples_dict = {"1": {"summary": "Номер обычный (укажите правильное значение для hotel_id)",
+                               "description": "Обязательно укажите правильное значение для hotel_id.<br>"
+                                              "Значения в параметре facilities_ids можно не указывать, "
+                                              "передать [].",
                                "value": {"hotel_id": 1,  # int, Идентификатор отеля, в котором находится комната
                                          "title": "Название обычного номера",  # String(length=100)
                                          "description": "Описание обычного номера",  # str
                                          "price": 11,  # int, Цена номера
                                          "quantity": 12,  # int, Общее количество номеров такого типа
+                                         "facilities_ids": []  # list[int], Список из идентификаторов удобств
                                          }
                                },
                          "2": {"summary": "Люкс (укажите правильное значение для hotel_id)",
+                               "description": "Тут тоже надо указать правильное значение для hotel_id.",
                                "value": {"hotel_id": 1,  # int, Идентификатор отеля, в котором находится комната
                                          "title": "Название люкса",  # String(length=100)
                                          "description": "Описание люкса",  # str
                                          "price": 21,  # int, Цена номера
                                          "quantity": 22,  # int, Общее количество номеров такого типа
+                                         "facilities_ids": [1, 2]  # list[int], Список из идентификаторов удобств
                                          }
                                }
                          }
@@ -123,6 +130,7 @@ openapi_examples_dict = {"1": {"summary": "Номер обычный (укажи
              )
 async def create_room_post(room_params: Annotated[RoomDescriptionRecURL,
                                                   Body(openapi_examples=openapi_examples_dict)],
+                                                  # Body()],
                            db: DBDep):
     """
     ## Функция создаёт запись.
@@ -164,9 +172,18 @@ async def create_room_post(room_params: Annotated[RoomDescriptionRecURL,
     #             rooms.description, rooms.price, rooms.quantity]
     # [parameters: (198, None, '198Описание обычного номера', 19811, 19812)]
     # (Background on this error at: https://sqlalche.me/e/20/gkpj)
-    result = await db.rooms.add(room_params)
+    room_params_schema = RoomBase(**room_params.model_dump())
+    room = await db.rooms.add(room_params_schema)
+    # room имеет тип словарь из одного элемента: {"added rooms": item: RoomPydanticSchema}
+    rooms_facilities_data = [RoomsFacilityBase(room_id=room["added rooms"].id,
+                                               facility_id=f_id)
+                             for f_id in room_params.facilities_ids]
+    await db.rooms_facilities.add_bulk(rooms_facilities_data)
     await db.commit()
-    return {"create_room": result}
+    return {"added rooms": {**room["added rooms"].model_dump(),
+                            "facilities_ids": room_params.facilities_ids,
+                            }
+            }
 
 
 @router.get("/{hotel_id}/rooms/all",
@@ -524,6 +541,7 @@ change_room_examples_lst = [{"hotel_id": 1,  # int, Идентификатор �
                              "description": "Описание номера - put",  # str
                              "price": 2,  # int, Цена номера
                              "quantity": 3,  # int, Общее количество номеров такого типа
+                             "facilities_ids": []  # list[int] | [], Список из идентификаторов удобств
                              },
                             ]
 
@@ -543,13 +561,22 @@ async def change_room_hotel_id_put(hotel_room: Annotated[HotelRoomPath, Path()],
                                                           Body()],
                                    db: DBDep,
                                    ):
-    _room_params = RoomDescriptionRecURL(hotel_id=hotel_room.hotel_id,
-                                         **room_params.model_dump())
+    # В исходных данных приходит поле facilities_ids, которое отсутствует в таблице
+    # Поэтому надо полученный набор полей преобразовать к схеме RoomBase.
+    _room_params = RoomBase(**room_params.model_dump(),
+                            hotel_id=hotel_room.hotel_id)
 
     # result = await db.rooms.edit(edited_data=_room_params,
     #                              id=hotel_room.room_id)
+
+    # Редактируем таблицу с номерами
     result = await db.rooms.edit_id(edited_data=_room_params,
                                     room_id=hotel_room.room_id)
+
+    # Редактируем m2m таблицу номера-удобства
+    await db.rooms_facilities.set_facilities_in_rooms_values(room_id=hotel_room.room_id,
+                                                             facilities_ids=room_params.facilities_ids)
+
     await db.commit()  # Подтверждаем изменение
     # Вариант вместо блока async with async_session_maker() as session:
     # то есть, обращаемся к уже написанной функции change_room_put.
@@ -567,7 +594,8 @@ async def change_room_hotel_id_put(hotel_room: Annotated[HotelRoomPath, Path()],
             )
 async def change_room_put(room: Annotated[RoomPath, Path()],
                           room_params: Annotated[RoomDescriptionRecURL,
-                                                 Body(examples=change_room_examples_lst)],
+                                                 # Body(examples=change_room_examples_lst)],
+                                                 Body()],
                           db: DBDep,
                           ):
     """
@@ -602,10 +630,18 @@ async def change_room_put(room: Annotated[RoomPath, Path()],
     - 0: все OK.
     - 1: ничего не найдено.
     """
-    result = await db.rooms.edit(edited_data=room_params,
+    # В исходных данных приходит поле facilities_ids, которое отсутствует в таблице
+    # Поэтому надо полученный набор полей преобразовать к схеме RoomBase.
+
+    # Редактируем таблицу с номерами
+    result = await db.rooms.edit(edited_data=RoomBase(**room_params.model_dump()),
                                  id=room.room_id)
     # result = await db.rooms.edit_id(edited_data=room_params,
     #                                 room_id=room.room_id)
+
+    # Редактируем m2m таблицу номера-удобства
+    await db.rooms_facilities.set_facilities_in_rooms_values(room_id=room.room_id,
+                                                             facilities_ids=room_params.facilities_ids)
     await db.commit()  # Подтверждаем изменение
     return result
 
@@ -615,8 +651,30 @@ change_room_examples_lst = [{"hotel_id": 1,  # int, Идентификатор �
                              "description": "Описание номера - patch",  # str
                              "price": 2,  # int, Цена номера
                              "quantity": 3,  # int, Общее количество номеров такого типа
+                             "facilities_ids": []  # list[int] | [], Список из идентификаторов удобств
                              },
                             ]
+openapi_examples_dict = {"full": {"summary": "A normal example",
+                                  "description": "A **normal** item works correctly.",
+                                  "value": {"hotel_id": 1,  # int, Идентификатор отеля, в котором находится комната
+                                            "title": "Название номера - patch",  # String(length=100)
+                                            "description": "Описание номера - patch",  # str
+                                            "price": 2,  # int, Цена номера
+                                            "quantity": 3,  # int, Общее количество номеров такого типа
+                                            "facilities_ids": []  # list[int] | [], Список из идентификаторов удобств
+                                            }
+                                  },
+                         "without facilities_ids": {"summary": "Example without facilities_ids",
+                                                    "description": "A **without facilities_ids** item works correctly.",
+                                                    "value": {"hotel_id": 1,  # int, Идентификатор отеля, в котором находится комната
+                                                              "title": "Название номера - patch",  # String(length=100)
+                                                              "description": "Описание номера - patch",  # str
+                                                              "price": 2,  # int, Цена номера
+                                                              "quantity": 3,  # int, Общее количество номеров такого типа
+                                                              # "facilities_ids": []  # list[int] | [], Список из идентификаторов удобств
+                                                              }
+                                                    },
+                         }
 
 
 @router.patch("/{hotel_id}/rooms/{room_id}",
@@ -633,14 +691,31 @@ async def change_room_hotel_id_patch(hotel_room: Annotated[HotelRoomPath, Path()
                                                             Body()],
                                      db: DBDep,
                                      ):
-    _room_params = RoomDescriptionOptURL(hotel_id=hotel_room.hotel_id,
-                                         **room_params.model_dump(exclude_unset=True))
+
+    # В исходных данных приходит поле facilities_ids, которое отсутствует в таблице
+    # Поэтому надо полученный набор полей преобразовать к схеме RoomBase.
+    # _room_params = RoomDescriptionOptURL(hotel_id=hotel_room.hotel_id,
+    _room_params = RoomBase(hotel_id=hotel_room.hotel_id,
+                            **room_params.model_dump(exclude_unset=True))
     # result = await db.rooms.edit(edited_data=_room_params,
     #                              id=hotel_room.room_id,
     #                              exclude_unset=True)
+
+    # Редактируем таблицу с номерами
     result = await db.rooms.edit_id(edited_data=_room_params,
                                     room_id=hotel_room.room_id,
                                     exclude_unset=True)
+
+    # Редактируем m2m таблицу номера-удобства
+    room_params_dict = room_params.model_dump(exclude_unset=True)
+    if "facilities_ids" in room_params_dict:
+        # Проверять надо room_params_dict["facilities_ids"], а не room_params.facilities_ids
+        # так как если клиент не будет передавать поле facilities_ids, то в
+        # room_params.facilities_ids будет приходить значение по умолчанию - так как
+        # клиент его не изменял и не передавал.
+        await db.rooms_facilities.set_facilities_in_rooms_values(room_id=hotel_room.room_id,
+                                                                 facilities_ids=room_params_dict["facilities_ids"])
+
     await db.commit()  # Подтверждаем изменение
     # Вариант вместо блока async with async_session_maker() as session:
     # то есть, обращаемся к уже написанной функции change_room_put.
@@ -658,7 +733,9 @@ async def change_room_hotel_id_patch(hotel_room: Annotated[HotelRoomPath, Path()
               )
 async def change_room_patch(room: Annotated[RoomPath, Path(examples=[{"hotel_id": 1}])],
                             room_params: Annotated[RoomDescriptionOptURL,
-                                                   Body(examples=change_room_examples_lst)],
+                                                   Body(examples=change_room_examples_lst,
+                                                        openapi_examples=openapi_examples_dict)],
+                                                   # Body()],
                             db: DBDep,
                             ):
     """
@@ -699,11 +776,25 @@ async def change_room_patch(room: Annotated[RoomPath, Path(examples=[{"hotel_id"
     - 0: все OK.
     - 1: ничего не найдено.
     """
-    result = await db.rooms.edit(edited_data=room_params,
+    # В исходных данных приходит поле facilities_ids, которое отсутствует в таблице
+    # Поэтому надо полученный набор полей преобразовать к схеме RoomBase.
+
+    # Редактируем таблицу с номерами
+    result = await db.rooms.edit(edited_data=RoomBase(**room_params.model_dump()),
                                  id=room.room_id,
                                  exclude_unset=True)
     # result = await db.rooms.edit_id(edited_data=room_params,
     #                                 room_id=room.room_id,
     #                                 exclude_unset=True)
+
+    # Редактируем m2m таблицу номера-удобства
+    room_params_dict = room_params.model_dump(exclude_unset=True)
+    if "facilities_ids" in room_params_dict:
+        # Проверять надо room_params_dict["facilities_ids"], а не room_params.facilities_ids
+        # так как если клиент не будет передавать поле facilities_ids, то в
+        # room_params.facilities_ids будет приходить значение по умолчанию - так как
+        # клиент его не изменял и не передавал.
+        await db.rooms_facilities.set_facilities_in_rooms_values(room_id=room.room_id,
+                                                                 facilities_ids=room_params_dict["facilities_ids"])
     await db.commit()  # Подтверждаем изменение
     return result
