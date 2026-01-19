@@ -3,6 +3,7 @@ from typing import Union, Callable, Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel
+
 from sqlalchemy import func as sa_func
 
 from sqlalchemy import select as sa_select  # Для реализации SQL команды SELECT
@@ -18,10 +19,12 @@ from sqlalchemy import Insert as sa_Insert  # Тип функции sa_insert
 
 from sqlalchemy.exc import MultipleResultsFound
 
-from src.models.rooms import RoomsORM
 from src.repositories.base import BaseRepository
-from src.models.hotels import HotelsORM
 from src.repositories.utils import rooms_ids_for_booking_query
+
+from src.models.rooms import RoomsORM
+from src.models.hotels import HotelsORM
+
 from src.schemas.hotels import HotelPydanticSchema
 
 # from src.database import engine

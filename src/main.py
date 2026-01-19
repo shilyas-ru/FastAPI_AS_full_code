@@ -15,23 +15,30 @@ from src.api.routers.auth import router as router_auth
 from src.api.routers.rooms import router as router_rooms
 from src.api.routers.hotels import router as router_hotels
 from src.api.routers.bookings import router as router_bookings
+from src.api.routers.facilities import router as router_facilities
 
 
 """
-## Задание № 14: Вернуть пагинацию и фильтрацию в получение отелей
-Необходимо добавить фильтрацию и пагинацию в метод get_filtered_by_time 
-в HotelsRepository и в API ручку /hotels. 
+## Задание № 15: Получение и добавление удобств
+Необходимо добавить роутер для удобств и две ручки:
 
-Метод get_all в HotelsRepository необходимо удалить.
+    GET /facilities на получение всех удобств
+    POST /facilities для добавления нового удобства
+
+Обратите внимание, что пока мы не используем m2m таблицу. 
+Она пригодится нам позже.
 """
 
 tags_metadata = {
     "title": "Приложение по работе с отелями",
-    "summary": "Задание № 14: Вернуть пагинацию и фильтрацию в получение отелей",  # short summary of the API
-    "version": "ver. 0.14.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
+    "summary": "Задание № 15: Получение и добавление удобств",  # short summary of the API
+    "version": "ver. 0.15.0",  # По умолчанию version = "0.1.0", Source code in fastapi/applications.py
     "description": "Тут должно быть подробное описание, но я размещу интересные для меня ссылки."
                    "<br><br>Полезные ссылки:  "
                    "<ul>"
+                   "<li>документация FastAPI - FastAPI_documentation "
+                   '<a href="https://github.com/amoglock/FastAPI_documentation/tree/master" '
+                   'target="_blank">альтернативный русский перевод</a>.</li>'
                    "<li>описание метатегов (metadata) "
                    '<a href="https://fastapi.qubitpi.org/reference/fastapi/#fastapi.FastAPI--example" '
                    'target="_blank">сторонний сайт</a> или '
@@ -101,8 +108,18 @@ URL-адреса метаданных и документации
 https://fastapi.tiangolo.com/ru/tutorial/metadata/
 """
 
+
 # В каком порядке указаны в openapi_tags записи - в таком они в документации и выводятся.
 openapi_tags = [
+    {
+        "name": router_facilities.tags[0],
+        "description": "Операции с удобствами в номерах.",
+        "externalDocs":
+            {
+                "description": "Подробнее во внешней документации (www.example.com)",
+                "url": "https://www.example.com/",
+            }
+    },
     {
         "name": router_bookings.tags[0],
         "description": "Операции с бронированием номеров.",
@@ -143,10 +160,12 @@ openapi_tags = [
 
 app = FastAPI(**tags_metadata,
               openapi_tags=openapi_tags)
+
 app.include_router(router_auth)
 app.include_router(router_rooms)
 app.include_router(router_hotels)
 app.include_router(router_bookings)
+app.include_router(router_facilities)
 
 if __name__ == "__main__":
     uvicorn.run("main:app",

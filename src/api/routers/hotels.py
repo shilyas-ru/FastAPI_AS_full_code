@@ -77,15 +77,17 @@ async def show_hotels_all_get(pagination: PaginationAllDep, db: DBDep):
     Параметры (передаются методом Query):
     - ***:param** page:* Номер страницы для вывода (должно быть >=1,
                 по умолчанию значение 1).
+                Не используется, если параметр all_objects равен True.
     - ***:param** per_page:* Количество элементов на странице (должно быть
                 >=1 и <=30, по умолчанию значение 3).
-    - ***:param** all_hotels:* отображать все отели сразу (True), или делать
+                Не используется, если параметр all_objects равен True.
+    - ***:param** all_objects:* отображать все отели сразу (True) или делать
                 вывод постранично (False или None). Может отсутствовать.
 
     Параметры:
     - ***:param** db:* Контекстный менеджер.
 
-    Если параметр `all_hotels` имеет значение `True`, то остальные
+    Если параметр `all_objects` имеет значение `True`, то остальные
     параметры игнорируются и сразу выводится полный список.
 
     ***:return:*** Список отелей или строка с уведомлением, если список отель пуст.
@@ -127,14 +129,14 @@ async def show_hotels_all_get(pagination: PaginationAllDep, db: DBDep):
     ```
     """
 
-    # if pagination.all_hotels:
+    # if pagination.all_objects:
     #     return await db.hotels.get_all()
     # else:
     #     return await db.hotels.get_limit(per_page=pagination.per_page,
     #                                      page=pagination.page)
     return await db.hotels.get_limit(per_page=pagination.per_page,
                                      page=pagination.page,
-                                     show_all=pagination.all_hotels,
+                                     show_all=pagination.all_objects,
                                      )
 
 
@@ -161,7 +163,7 @@ async def show_hotels_free_get(pagination: PaginationAllDep,
                                                         description="Дата, ДО которой бронируется номер",
                                                         )] = None
                                ):
-    # if pagination.all_hotels:
+    # if pagination.all_objects:
     #     return await db.hotels.get_limit(date_from=date_from,
     #                                      date_to=date_to,
     #                                      show_all=True)
@@ -176,7 +178,7 @@ async def show_hotels_free_get(pagination: PaginationAllDep,
                                      date_to=date_to,
                                      per_page=pagination.per_page,
                                      page=pagination.page,
-                                     show_all=pagination.all_hotels,
+                                     show_all=pagination.all_objects,
                                      )
     # return await db.hotels.get_filtered_by_time(date_from=date_from,
     #                                             date_to=date_to)
