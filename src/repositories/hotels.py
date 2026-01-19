@@ -66,9 +66,9 @@ class HotelsRepository(BaseRepository):
     #       Служит обёрткой для родительского метода edit.
     # - delete. Удаляет объект или объекты в базе, используя метод delete.
     #       Служит обёрткой для родительского метода delete.
-    # - get_id. Выбирает по идентификатору (поле self.model.id) один объект
+    # - get_by_id. Выбирает по идентификатору (поле self.model.id) один объект
     #       в базе, используя метод get.
-    #       Служит обёрткой для родительского метода get_id.
+    #       Служит обёрткой для родительского метода get_by_id.
 
     async def get_all(self):
         """
@@ -626,11 +626,11 @@ class HotelsRepository(BaseRepository):
                                         })
         return {"deleted hotels": result}
 
-    async def get_id(self, hotel_id: int):  # -> None:
+    async def get_by_id(self, hotel_id: int):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get. Служит обёрткой для родительского
-        метода get_id.
+        метода get_by_id.
 
         :param hotel_id: Идентификатор выбираемого объекта.
 
@@ -645,8 +645,8 @@ class HotelsRepository(BaseRepository):
         HTTPException с кодом 404.
         """
 
-        # result = await self.session.get(self.model, object_id)
-        result = await super().get_id(hotel_id)
+        # result = await self.session.get(self.model, hotel_id)
+        result = await super().get_by_id(hotel_id)
         # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
         # Возвращает пустой список: [] или объект:
         # HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16)

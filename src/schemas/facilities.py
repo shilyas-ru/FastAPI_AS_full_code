@@ -41,7 +41,7 @@ class RoomsFacilityBase(BaseModel):
     facility_id: int = Field()
 
 
-class RoomsFacilityPydanticSchema(FacilityBase):
+class RoomsFacilityPydanticSchema(RoomsFacilityBase):
     # Эта схема должна иметь такие же поля, как указаны в схеме
     # для удобств - facilities (класс FacilitiesORM в файле src\models\facilities.py).
     # Поле title наследуем от родителя.

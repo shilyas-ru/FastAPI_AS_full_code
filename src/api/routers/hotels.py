@@ -335,7 +335,7 @@ async def get_hotel_id_get(hotel_path: Annotated[HotelPath, Path()], db: DBDep):
         HTTPException с кодом 404.
     """
 
-    result = await db.hotels.get_id(hotel_id=hotel_path.hotel_id)
+    result = await db.hotels.get_by_id(hotel_id=hotel_path.hotel_id)
     return result
 
 

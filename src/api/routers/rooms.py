@@ -9,7 +9,7 @@ from sqlalchemy import delete as sa_delete  # Для реализации SQL к
 from src.api.dependencies.dependencies import DBDep, PaginationAllDep, PaginationPagesDep
 from src.schemas.facilities import RoomsFacilityBase
 
-from src.schemas.rooms import RoomPath, HotelRoomPath, HotelPath, RoomPydanticSchema, RoomBase
+from src.schemas.rooms import RoomPath, HotelRoomPath, HotelPath, RoomPydanticSchema, RoomBase, RoomWithRels
 from src.schemas.rooms import RoomDescriptionRecURL, RoomDescrRecRequest
 from src.schemas.rooms import RoomDescriptionOptURL, RoomDescrOptRequest
 
@@ -197,6 +197,9 @@ async def show_rooms_in_hotel_all_get(hotel_path: Annotated[HotelPath, Path()],
                                       db: DBDep):
     # return await db.rooms.get_all(hotel_id=hotel_path.hotel_id)
     return await db.rooms.get_limit(hotel_id=hotel_path.hotel_id,
+                                    # Было RoomPydanticSchema, но так как подключаем получение
+                                    # списка удобств, то схема их должна уметь распознавать
+                                    pydantic_schema=RoomWithRels,
                                     per_page=pagination.per_page,
                                     page=pagination.page,
                                     show_all=pagination.all_objects,
@@ -230,6 +233,9 @@ async def show_rooms_in_hotel_free_get(hotel_path: Annotated[HotelPath, Path()],
     #                                            date_from=date_from,
     #                                            date_to=date_to)
     return await db.rooms.get_limit(hotel_id=hotel_path.hotel_id,
+                                    # Было RoomPydanticSchema, но так как подключаем получение
+                                    # списка удобств, то схема их должна уметь распознавать
+                                    pydantic_schema=RoomWithRels,
                                     per_page=pagination.per_page,
                                     page=pagination.page,
                                     show_all=pagination.all_objects,
@@ -386,6 +392,9 @@ async def find_rooms_get(pagination: PaginationPagesDep,
     #     date_to = None
 
     return await db.rooms.get_limit(query=query,
+                                    # Было RoomPydanticSchema, но так как подключаем получение
+                                    # списка удобств, то схема их должна уметь распознавать
+                                    pydantic_schema=RoomWithRels,
                                     per_page=pagination.per_page,
                                     page=pagination.page,
                                     free_rooms=free_rooms,
@@ -396,29 +405,55 @@ async def find_rooms_get(pagination: PaginationPagesDep,
                                     )
 
 
-@router.get("/rooms/{room_id}",
-            summary="Получение из базы данных выбранной записи по идентификатору отеля",
+@router.get("/rooms/{room_id}/session_get",
+            summary="Получение из базы данных выбранной записи по идентификатору "
+                    "номера, используя метод session.get(model, object_id)",
             description="Тут будет описание параметров метода",
             )
-async def get_rooms_id_get(room: Annotated[RoomPath, Path()], db: DBDep):
+async def get_room_session_get_method_get(room: Annotated[RoomPath, Path()], db: DBDep):
     """
     ## Функция получает из базы данных выбранную запись по идентификатору отеля.
 
+    Параметры:
+    :param db: Контекстный менеджер.
+
     Параметры (передаются в URL):
-    - ***:param** room_id:* Идентификатор номера (обязательно).
+    :param room: Идентификатор номера (обязательно): room.room_id.
 
-    ***:return:*** Словарь: `{"status": str, "err_type": int, "got row": dict}`, где:
-
-    - ***status***: Текстовое описание результата операции.;
-    - ***err_type***: Код результата операции.
-      Принимает значения:
-      - 0 (OK: выполнено нормально, без ошибок).
-      - 1 (Error: Для объекта с указанным идентификатором ничего не найдено).
-      - 2 (Error: Не указан идентификатор отеля для выборки).
-    - ***got_row***: Выбранный объект. Выводятся в виде словаря элементы
-      объекта HotelsORM.
+    :return: Возвращает словарь: {"room": dict},
+        где:
+        - room: Выбранный объект.
+            Тип возвращаемого элемента преобразован к схеме Pydantic: RoomWithRels.
+            Поле facilities содержит список удобств (id, title) или пустой список ([]).
+        Если номер не найден, то возбуждается исключение 404.
     """
-    result = await db.rooms.get_id(room_id=room.room_id)
+    result = await db.rooms.get_by_id(room_id=room.room_id)
+    return result
+
+
+@router.get("/rooms/{room_id}/session_execute",
+            summary="Получение из базы данных выбранной записи по идентификатору номера, "
+                    "используя метод session.execute(select(model).filter_by(**filtering))",
+            description="Тут будет описание параметров метода",
+            )
+async def get_room_session_execute_method_get(room: Annotated[RoomPath, Path()], db: DBDep):
+    """
+    ## Функция получает из базы данных выбранную запись по идентификатору отеля.
+
+    Параметры:
+    :param db: Контекстный менеджер.
+
+    Параметры (передаются в URL):
+    :param room: Идентификатор номера (обязательно): room.room_id.
+
+    :return: Возвращает словарь: {"room": dict},
+        где:
+        - room: Выбранный объект.
+            Тип возвращаемого элемента преобразован к схеме Pydantic: RoomWithRels.
+            Поле facilities содержит список удобств (id, title) или пустой список ([]).
+        Если номер не найден, то возбуждается исключение 404.
+    """
+    result = await db.rooms.get_by_id_one_or_none(room_id=room.room_id)
     return result
 
 

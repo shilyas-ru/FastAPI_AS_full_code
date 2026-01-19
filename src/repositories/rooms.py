@@ -16,14 +16,19 @@ from sqlalchemy import Delete as sa_Delete  # Тип функции sa_delete
 from sqlalchemy import Update as sa_Update  # Тип функции sa_update
 from sqlalchemy import Insert as sa_Insert  # Тип функции sa_insert
 
+from sqlalchemy.orm import selectinload, joinedload
+
 from sqlalchemy.exc import IntegrityError
 
+from src.models.facilities import RoomsFacilitiesORM, FacilitiesORM
 from src.repositories.base import BaseRepository
 
 from src.models.rooms import RoomsORM
 from src.repositories.hotels import HotelsRepository
 from src.repositories.utils import rooms_ids_for_booking_query
-from src.schemas.rooms import RoomPydanticSchema
+from src.schemas.facilities import RoomsFacilityPydanticSchema, FacilityPydanticSchema
+from src.schemas.rooms import RoomPydanticSchema, RoomWithRels
+
 
 # from src.database import engine
 
@@ -67,9 +72,9 @@ class RoomsRepository(BaseRepository):
     # - get_filtered_by_time. Выбирает все свободные номера в указанный
     #       промежуток времени (от date_from до date_to) для указанного отеля.
     #       Использует родительский метод get_rows.
-    # - get_id. Выбирает по идентификатору (поле self.model.id) один объект
+    # - get_by_id. Выбирает по идентификатору (поле self.model.id) один объект
     #       в базе, используя метод get.
-    #       Служит обёрткой для родительского метода get_id.
+    #       Служит обёрткой для родительского метода get_by_id.
     # - delete. Удаляет объект или объекты в базе, используя метод delete.
     #       Служит обёрткой для родительского метода delete.
     # - delete_id. Выбирает по идентификатору (по первичному ключу) - поле
@@ -444,6 +449,7 @@ class RoomsRepository(BaseRepository):
     async def get_limit(self,
                         *filter,
                         hotel_id: int | None = None,
+                        pydantic_schema=None,
                         query: sa_Select | None = None,
                         title: str | None = None,
                         description: str | None = None,
@@ -463,6 +469,10 @@ class RoomsRepository(BaseRepository):
 
         :param filter: Фильтры для запроса - конструкция .filter(*filter).
         :param hotel_id: Идентификатор отеля
+        :param pydantic_schema: Схема pydantic, к которой преобразовываются
+                полученные значения (итоговый результат).
+                Если не задано (pydantic_schema=None), то принимает значение
+                по умолчанию: self.schema
         :param query: SQL-запрос. Если простой SELECT-запрос на выборку,
             то он формируется внутри метода. В качестве значений могут
             приходить запросы, связанные с разными фильтрами.
@@ -522,14 +532,61 @@ class RoomsRepository(BaseRepository):
         # SQL-запросе. То есть, если query имеет какое-то значение, то в этом случае добавляется
         # фильтр filter_by(hotel_id=hotel_id) только при не пустом значении hotel_id.
 
+        if pydantic_schema is None:
+            pydantic_schema = self.schema
+
         if query is None:
             await self.check_hotel_id(hotel_id=hotel_id)
             query = sa_select(self.model)
+
+            if pydantic_schema is RoomWithRels:
+                #
+                # selectinload - надо использовать: result.scalars().all()
+                # Делает два запроса
+                # Сначала получит все номера
+                # Потом получит все удобства, которые соответствуют этим номерам
+                # В этом случае меньше данных гоняется по сети, но будет два запроса.
+                # joinedload - надо использовать: result.unique().scalars().all()
+                # Делает один запрос
+                # Джойнит М2М таблицу и к ней джойнит таблицу facilities.
+                # То есть, происходит два джойна
+
+                # Используем selectinload
+                query = query.options(selectinload(self.model.facilities))
+                # print(query.compile(compile_kwargs={"literal_binds": True}))
+                # SELECT rooms.id, rooms.hotel_id,
+                #        rooms.title, rooms.description,
+                #        rooms.price, rooms.quantity
+                # FROM rooms
+
+                # Используем joinedload
+                # query = query.options(joinedload(self.model.facilities))
+                # print(query.compile(compile_kwargs={"literal_binds": True}))
+                # SELECT rooms.id,
+                #        rooms.hotel_id,
+                #        rooms.title,
+                #        rooms.description,
+                #        rooms.price,
+                #        rooms.quantity,
+                #        facilities_1.id AS id_1,
+                #        facilities_1.title AS title_1
+                # FROM rooms
+                # LEFT OUTER JOIN (rooms_facilities AS rooms_facilities_1
+                #                  JOIN facilities AS facilities_1
+                #                  ON facilities_1.id = rooms_facilities_1.facility_id
+                #                  )
+                # ON rooms.id = rooms_facilities_1.room_id
 
         if hotel_id is not None:
             # Возможно, что query будет передаваться через
             # параметры, тогда hotel_id может быть не задано.
             query = query.filter_by(hotel_id=hotel_id)
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # SELECT rooms.id, rooms.hotel_id,
+        #        rooms.title, rooms.description,
+        #        rooms.price, rooms.quantity
+        # FROM rooms
+        # WHERE rooms.hotel_id = 214
 
         if free_rooms:
             # Выбирать свободные (не забронированные) номера в указанные даты (True)
@@ -566,7 +623,89 @@ class RoomsRepository(BaseRepository):
         if price_max:
             query = query.where(self.model.price <= price_max)
 
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # Итоговый запрос, если использовать selectinload:
+        # WITH rooms_count AS (
+        #         SELECT bookings.room_id AS room_id,
+        #                count('*') AS rooms_booked
+        #         FROM bookings
+        #         WHERE bookings.date_from <= '2025-01-23'
+        #               AND
+        #               bookings.date_to >= '2025-01-20'
+        #         GROUP BY bookings.room_id
+        # ),
+        #     rooms_left_table AS (
+        #         SELECT rooms.id AS room_id,
+        #                rooms.quantity - coalesce(rooms_count.rooms_booked, 0) AS rooms_left
+        #         FROM rooms
+        #         LEFT OUTER JOIN rooms_count ON rooms.id = rooms_count.room_id
+        # )
+        # SELECT rooms.id,
+        #        rooms.hotel_id,
+        #        rooms.title,
+        #        rooms.description,
+        #        rooms.price,
+        #        rooms.quantity
+        # FROM rooms
+        # WHERE rooms.hotel_id = 214
+        #       AND rooms.id IN (SELECT rooms_left_table.room_id
+        #                        FROM rooms_left_table
+        #                        WHERE rooms_left_table.rooms_left > 0
+        #                              AND
+        #                              rooms_left_table.room_id IN (SELECT rooms_ids_for_hotel.id
+        #                                                           FROM (SELECT rooms.id AS id
+        #                                                                 FROM rooms
+        #                                                                 WHERE rooms.hotel_id = 214) AS rooms_ids_for_hotel
+        #                                                           )
+        #                        )
+
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # Итоговый запрос, если использовать joinedload:
+        # WITH rooms_count AS (
+        #         SELECT bookings.room_id AS room_id,
+        #                count('*') AS rooms_booked
+        #         FROM bookings
+        #         WHERE bookings.date_from <= '2025-01-23'
+        #               AND
+        #               bookings.date_to >= '2025-01-20'
+        #         GROUP BY bookings.room_id
+        # ),
+        #     rooms_left_table AS (
+        #         SELECT rooms.id AS room_id,
+        #                rooms.quantity - coalesce(rooms_count.rooms_booked, 0) AS rooms_left
+        #         FROM rooms
+        #         LEFT OUTER JOIN rooms_count
+        #         ON rooms.id = rooms_count.room_id
+        # )
+        # SELECT rooms.id,
+        #        rooms.hotel_id,
+        #        rooms.title,
+        #        rooms.description,
+        #        rooms.price,
+        #        rooms.quantity,
+        #        facilities_1.id AS id_1,
+        #        facilities_1.title AS title_1
+        # FROM rooms
+        # LEFT OUTER JOIN (rooms_facilities AS rooms_facilities_1
+        #                  JOIN facilities AS facilities_1
+        #                  ON facilities_1.id = rooms_facilities_1.facility_id
+        #                  )
+        # ON rooms.id = rooms_facilities_1.room_id
+        # WHERE rooms.hotel_id = 17
+        #       AND
+        #       rooms.id IN (SELECT rooms_left_table.room_id
+        #                    FROM rooms_left_table
+        #                    WHERE rooms_left_table.rooms_left > 0
+        #                          AND
+        #                          rooms_left_table.room_id IN (SELECT rooms_ids_for_hotel.id
+        #                                                       FROM (SELECT rooms.id AS id
+        #                                                             FROM rooms
+        #                                                             WHERE rooms.hotel_id = 17) AS rooms_ids_for_hotel
+        #                                                       )
+        #                    )
+
         result = await super().get_rows(*filter,
+                                        pydantic_schema=pydantic_schema,
                                         query=query,
                                         per_page=per_page,
                                         page=page,
@@ -594,34 +733,186 @@ class RoomsRepository(BaseRepository):
                   f"Всего выводится {len(result)} элемент(-а/-ов) на странице.")
         return {"status": status, "rooms": result}
 
-    async def get_id(self, room_id: int):  # -> None:
+    async def get_by_id(self, room_id: int):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get. Служит обёрткой для родительского
-        метода get_id.
+        метода get_by_id.
 
         :param room_id: Идентификатор выбираемого объекта.
 
         :return: Возвращает словарь: {"room": dict},
         где:
         - room: Выбранный объект.
-            Тип возвращаемого элемента преобразован к схеме Pydantic: self.schema.
-
+            Тип возвращаемого элемента преобразован к схеме Pydantic: RoomWithRels.
+            Поле facilities содержит список удобств (id, title) или пустой список ([]).
+        Если номер не найден, то возбуждается исключение 404.
         """
         # result = await self.session.get(self.model, object_id)
-        result = await super().get_id(room_id)
-        # result: None или <src.models.hotels.HotelsORM object at 0x0000023FB96EAD90>
-        # Возвращает пустой список: [] или объект:
-        # HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16)
+        result_room_by_id = await super().get_by_id(room_id)
+        # print(result_room_by_id)
+        # result: None или <class 'src.schemas.rooms.RoomPydanticSchema'>
+        # Возвращает None или объект:
+        #         RoomPydanticSchema(hotel_id=214,
+        #                            title='title_string',
+        #                            description='description_string',
+        #                            price=21,
+        #                            quantity=22,
+        #                            id=61)
         # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
-        if not result:
+        if not result_room_by_id:
             # status_code=404: Сервер понял запрос, но не нашёл
             #                  соответствующего ресурса по указанному URL
             raise HTTPException(status_code=404,
                                 detail={"description": "Для комнаты с идентификатором "
                                                        f"{room_id} ничего не найдено",
                                         })
+        query = (sa_select(FacilitiesORM)
+                 .select_from(FacilitiesORM)
+                 .where(FacilitiesORM.id.in_(sa_select(RoomsFacilitiesORM.facility_id)
+                                             .select_from(RoomsFacilitiesORM)
+                                             .where(RoomsFacilitiesORM.room_id == room_id)
+                                             # .filter_by(room_id=room_id)
+                                             )
+                        )
+                 )
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # SELECT facilities.id, facilities.title
+        # FROM facilities
+        # WHERE facilities.id IN (SELECT rooms_facilities.facility_id
+        #                         FROM rooms_facilities
+        #                         WHERE rooms_facilities.room_id = 61)
+        # Тот же запрос с параметрами:
+        # SELECT facilities.id, facilities.title
+        # FROM facilities
+        # WHERE facilities.id IN (SELECT rooms_facilities.facility_id
+        #                         FROM rooms_facilities
+        #                         WHERE rooms_facilities.room_id = :room_id_1)
+
+        # query = (sa_select(RoomsFacilitiesORM)
+        #          .select_from(RoomsFacilitiesORM)
+        #          .where(RoomsFacilitiesORM.room_id == room_id)
+        #          # .filter_by(room_id=room_id)
+        #          )
+        # SELECT rooms_facilities.id, rooms_facilities.room_id, rooms_facilities.facility_id
+        # FROM rooms_facilities
+        # WHERE rooms_facilities.room_id = :room_id_1
+
+        result_m2m_room_facilities = await self.session.execute(query)
+        # result_pydantic_schema:
+        #       [<src.models.facilities.FacilitiesORM object at 0x000001EE7F5E2190>,
+        #        <src.models.facilities.FacilitiesORM object at 0x000001EE7F5E22D0>]
+        # FacilityPydanticSchema: поля id и title
+        result_pydantic_schema = [FacilityPydanticSchema.model_validate(row_model)
+                                  for row_model in result_m2m_room_facilities.scalars().all()]
+        # print(result_pydantic_schema)
+        # Возвращает [] или объект:
+        #       [FacilityPydanticSchema(title='title_string_1', id=1),
+        #        FacilityPydanticSchema(title='title_string_2', id=2)]
+        # result = RoomWithRels(**RoomPydanticSchema.model_validate(result_room_by_id))
+        # для рекурсивного преобразования в словари вложенных
+        # моделей в Pydantic есть метод model_dump()
+
+        # Преобразовали в словарь: result_room_by_id.model_dump()
+        # Словарь распаковали (преобразовали в пары ключ=значение): **result_room_by_id.model_dump()
+
+        # Вариант 1
+        # result = RoomWithRels(**result_room_by_id.model_dump(),
+        #                       facilities=result_pydantic_schema)
+
+        # d1 = {'x': 1, 'y': 2}
+        # d2 = {'y': 3, 'z': 4}
+        #
+        # d3 = d1 | d2
+        #   значение d3: {'x': 1, 'y': 3, 'z': 4}
+
+        # Вариант 2
+        result = RoomWithRels.model_validate(result_room_by_id.model_dump() |
+                                             {"facilities": result_pydantic_schema})
+        # Если result_room_by_id было None (не найден элемент по индексу),
+        # то ранее возбуждалось исключение. Значит, тут это какой-то объект.
+        # Возвращает объект, где поле facilities пустой список или список с данными:
+        #       RoomWithRels(hotel_id=214,
+        #                    title='title_string',
+        #                    description='description_string',
+        #                    price=21,
+        #                    quantity=22,
+        #                    id=61,
+        #                    facilities=[FacilityPydanticSchema(title='title_string_1', id=1),
+        #                                FacilityPydanticSchema(title='title_string_2', id=2)]
+        #                    )
         return {"room": result}
+
+    async def get_by_id_one_or_none(self, room_id: int):
+        """
+
+        Метод класса. Выбирает объекты из базы по запросу с
+        фильтрами filter_by(**filtering).
+        Использует штатный метод one_or_none().
+
+        :param room_id: Идентификатор выбираемого объекта.
+
+        :return: Возвращает словарь: {"room": dict},
+            где:
+            - room: Выбранный объект.
+                Тип возвращаемого элемента преобразован к схеме Pydantic: RoomWithRels.
+                Поле facilities содержит список удобств (id, title) или пустой список ([]).
+            Если номер не найден, то возбуждается исключение 404.
+            Если найдено более одного результата, то возбуждается исключение по
+            ошибке sqlalchemy.orm.exc.MultipleResultsFound
+        """
+        # selectinload - надо использовать: result.scalars().all()
+        # Делает два запроса
+        # Сначала получит все номера
+        # Потом получит все удобства, которые соответствуют этим номерам
+        # В этом случае меньше данных гоняется по сети, но будет два запроса.
+        # joinedload - надо использовать: result.unique().scalars().all()
+        # Делает один запрос
+        # Джойнит М2М таблицу и к ней джойнит таблицу facilities.
+        # То есть, происходит два джойна
+
+        # Используем selectinload
+        query = sa_select(self.model).options(selectinload(self.model.facilities))
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # SELECT rooms.id, rooms.hotel_id,
+        #        rooms.title, rooms.description,
+        #        rooms.price, rooms.quantity
+        # FROM rooms
+
+        # Используем joinedload
+        # query = query.options(joinedload(self.model.facilities))
+        # print(query.compile(compile_kwargs={"literal_binds": True}))
+        # SELECT rooms.id,
+        #        rooms.hotel_id,
+        #        rooms.title,
+        #        rooms.description,
+        #        rooms.price,
+        #        rooms.quantity,
+        #        facilities_1.id AS id_1,
+        #        facilities_1.title AS title_1
+        # FROM rooms
+        # LEFT OUTER JOIN (rooms_facilities AS rooms_facilities_1
+        #                  JOIN facilities AS facilities_1
+        #                  ON facilities_1.id = rooms_facilities_1.facility_id
+        #                  )
+        # ON rooms.id = rooms_facilities_1.room_id
+
+        result = await super().get_one_or_none(query=query,
+                                               pydantic_schema=RoomWithRels,
+                                               id=room_id,
+                                               )
+        # Возвращает пустой список: [] или список:
+        # [HotelPydanticSchema(title='title_string_1', location='location_string_1', id=16),
+        #  HotelPydanticSchema(title='title_string_2', location='location_string_2', id=17),
+        #  ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
+        # Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
+        if result is None:
+            # status_code=404: Сервер понял запрос, но не нашёл
+            #                  соответствующего ресурса по указанному URL
+            raise HTTPException(status_code=404,
+                                detail={"description": "Данные отсутствуют.",
+                                        })
+        return result
 
     async def delete(self, delete_stmt=None, **filtering):  # -> None:
         """

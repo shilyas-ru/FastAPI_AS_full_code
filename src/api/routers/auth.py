@@ -155,7 +155,7 @@ async def get_me_get(user_id: UserIdDep, db: DBDep):
         raise HTTPException(status_code=401,
                             detail="Пользователь не авторизовался")
 
-    user = await db.users.get_id(object_id=user_id)
+    user = await db.users.get_by_id(object_id=user_id)
     return {"user_id": user_id, "user": user}
 
 

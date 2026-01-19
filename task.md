@@ -1,82 +1,85 @@
-## Задание № 16: Изменение удобств номера через API
+## Задание № 17: Получение удобств конкретного номера
 
-Необходимо вместе с редактирование номеров через PUT и PATCH дать 
-возможность редактировать удобства номера.
+Необходимо получать удобства в ручке для получения конкретного номера.
 
-То есть новых ручек создавать не нужно — все задание решается 
-внутри уже существующих ручек на изменение номера.
-
-Звучит просто. Но на деле всё сложнее. У номера уже могут быть 
-какие-то удобства, например, с айдишниками 1 и 2. А пользователь 
-решил убрать удобство 1 и добавить удобство 3.
-
-Теперь, нам как бэкендерам, необходимо удалить из m2m таблицы 
-удобство 1 и добавить удобство 3. В идеале оставить удобство 2 
-нетронутым, чтобы:
-
-1. Запросы происходили быстрее (т.к. часть данных не изменяется).
-2. Столбец id не рос слишком быстро. А то может случиться так, 
-   что он превысит лимит и нам придется тратить память, чтобы 
-   увеличить лимит столбца id (речь про тип bigint в PostgreSQL).
-
-
-Задача в том, чтобы придумать рабочий способ определения тех удобств, 
-которые нуждаются в удалении или добавлении. И произвести манипуляции 
-вставки или удаления только с ними. А нетронутые удобства оставить 
-нетронутыми.
+Для этого необходимо создать новый метод в репозитории RoomsRepository, 
+который подгрузит удобства через relationship, и вызвать этот метод внутри ручки.
 
 
 ## Что сделано
 
-К заданию № 15 "Задание № 15: Получение и добавление удобств"
+К заданию "Задание № 16: Изменение удобств номера через API"
 добавлено:
 
-- Добавляем работу с таблицей `rooms_facilities` (таблица `many-to-many`).
-- Добавляем данные в таблицу `rooms_facilities` (модель `RoomsFacilitiesORM` 
-  в файле src\models\facilities.py). Делаем, чтобы при добавлении нового 
-  номера можно было сразу добавить список удобств, находящихся в этом 
-  номере:
-    - В схеме номеров (файл src\schemas\rooms.py) в Pydantic-схемах, 
-      которые обеспечивают получение данных с сайта (схемы в имени которых 
-      присутствует `Request`, применяемые для организации query и body 
-      параметров) добавляем поле - список из идентификаторов удобств:
-        - В class `RoomDescrRecRequest(BaseModel)` добавляем:
-            - поле: `facilities_ids: list[int]`
-        - В class `RoomDescrOptRequest(BaseModel)` добавляем:
-            - поле: `facilities_ids: list[int] | None = None`
-    - Делаем Pydantic-схемы для отношения `rooms_facilities`.<br>
-      В файле src\schemas\facilities.py для схем. В нём создаём нужные схемы:
-        - `class RoomsFacilityBase(BaseModel)`.
-        - `class RoomsFacilityPydanticSchema(FacilityBase)`.
-    - Делаем репозиторий. В файле src\repositories\facilities.py, 
-      создаём:
-        - Создали класс `class RoomsFacilitiesRepository(BaseRepository)` с 
-          атрибутами:
-            - `model = RoomsFacilitiesORM`.
-            - `schema = RoomsFacilityPydanticSchema`.
-        - Создали метод класса:
-            - `set_facilities_in_rooms_values`.
-    - Добавляем в src\utils\db_manager.py:
-        - В методе `async def __aenter__` добавляем:<br>
-          `self.rooms_facilities = RoomsFacilitiesRepository(self.session)`.
-    - Добавляем в файле src\repositories\base.py в базовом репозитории 
-      `BaseRepository` метод `add_bulk` для создания сразу многих данных.
-    - Добавляем информацию о `facilities` в примеры `openapi_examples_dict` в 
-      файле src\api\routers\rooms.py.
-    - Редактируем в файле src\api\routers\rooms.py функцию для создания
-      номеров: `create_room_post`, добавляя указанные удобства в таблицу 
-      `rooms_facilities`.
-- Добавляем в методы изменения информации о номере возможность добавлять, 
-  редактировать и удалять информацию об удобствах:
-    - Изменяем репозиторий. В файле src\repositories\facilities.py в
-      классе `RoomsFacilitiesRepository` создаём метод для обработки 
-      списка удобств: `set_facilities_in_rooms_values`.
-    - Редактируем в файле src\api\routers\rooms.py функции для изменения 
-      информации о номере:
-        - `change_room_put`,
-        - `change_room_hotel_id_put`,
-        - `change_room_patch`,
-        - `change_room_hotel_id_patch`.
+- Добавляем `relationship` - получение связанных данных в одной модели.
+    - В модели номеров (файл src\models\rooms.py) в класс `RoomsORM(Base)` 
+      добавляем атрибут:
+      - `rooms: Mapped[list["RoomsORM"]] = relationship(`<br>
+        `                secondary="rooms_facilities",`<br>
+        `                back_populates="facilities")`<br>
+    - В модели удобств (файл src\models\facilities.py) в класс `FacilitiesORM(Base)` 
+      добавляем атрибут:
+      - `facilities: Mapped[list["FacilitiesOrm"]] = relationship(`<br>
+        `                secondary="rooms_facilities",`<br>
+        `                back_populates="rooms")`<br>
+    - В обе модели добавляем импорт: 
+        - `from sqlalchemy.orm import relationship`
+    - Добавляем схему, учитывающую список удобств в номере. Редактируем файл
+      src\schemas\rooms.py, добавляя:
+        - `class RoomWithRels(RoomPydanticSchema):`<br>
+          `    facilities: list[FacilityPydanticSchema]`<br>
+    - Редактируем репозитарий `RoomsRepository` в файле src\repositories\rooms.py:
+        - Правим метод `get_limit`, добавляя:
+            - параметр: `pydantic_schema=None,`
+            - код: <br>
+              `if pydantic_schema is RoomWithRels:`<br>
+              `    query = query.options(selectinload(self.model.facilities))`<br>
+    - Редактируем репозитарий `BaseRepository` в файле src\repositories\base.py:
+        - Правим метод `get_rows`:
+            - Добавляя параметр: `pydantic_schema=None,`
+            - Редактируя код: <br>
+              `if pydantic_schema is None:`<br>
+              `    pydantic_schema = self.schema`<br>
+            - Редактируя код, заменив `self.schema.model_validate`
+              на `pydantic_schema.model_validate`, итог:<br>
+              `result_pydantic_schema = [pydantic_schema.model_validate(row_model)`<br>
+              `                          for row_model in result.scalars().all()]`<br>
+    - Редактируем ручку, в которой получаем все номера. для этого добавляем в 
+      вызов метода `db.rooms.get_limit` параметр `pydantic_schema=RoomWithRels,` в
+      функции:
+        - `show_rooms_in_hotel_all_get`, ручка `get("/{hotel_id}/rooms/all")`.
+        - `show_rooms_in_hotel_free_get`, ручка `get("/{hotel_id}/rooms/free")`.
+    - Добавляем вывод удобств при получении конкретного номера. Номер можно 
+      получить двумя вариантами: используя метод `session.get` или используя метод<br>
+      `session.execute(select(model).filter_by(**filtering))`.
+        - Переименовываем ручку `get("/rooms/{room_id}")`, функция `get_rooms_id_get`
+          в `get("/rooms/{room_id}/session_get")`, функция `get_room_session_get_method_get`.
+        - Добавляем ручку `get("/rooms/{room_id}/session_execute")`, функция
+          `get_room_session_execute_method_get`.
+        - В метод `get_id` в метод `get_by_id` файлах:
+            - src\api\routers\auth.py
+            - src\api\routers\bookings.py
+            - src\api\routers\hotels.py
+            - src\api\routers\rooms.py
+            - src\repositories\base.py
+            - src\repositories\hotels.py
+            - src\repositories\rooms.py
+        - Реализуем вариант с `session.get`. Для этого:
+            - Редактируем в файле src\repositories\rooms.py в репозитарии 
+              `RoomsRepository`:
+                - Правим метод `get_by_id`, добавляя:
+                    - Формируем запрос: `query = ...`
+                    - Выполняем запрос: `result_m2m_room_facilities = ...`
+                    - Преобразовываем полученный результат к схеме pydantic<br>
+                      `result_pydantic_schema = [FacilityPydanticSchema...]`
+                    - Объединяем полученные `result_m2m_room_facilities` и 
+                      `result_pydantic_schema` в итоговый результат, преобразуя<br>
+                      `result = RoomWithRels.model_validate(...)`
+        - Реализуем вариант с `session.execute(select(model).filter_by(**filtering))`.
+          Для этого:
+            - Создаём в файле src\repositories\rooms.py в репозитарии 
+              `RoomsRepository`:
+                - `Метод get_by_id_one_or_none`
 
 ## Итог
 

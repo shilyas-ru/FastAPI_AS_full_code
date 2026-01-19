@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 
+from src.schemas.facilities import FacilityPydanticSchema
+
 # Pydantic 2: Полное руководство для Python-разработчиков — от основ до продвинутых техник
 # https://fastapi.qubitpi.org/reference/fastapi/?h=tags_metadata#fastapi.FastAPI--example
 
@@ -227,3 +229,10 @@ class RoomPydanticSchema(RoomBase):
 #                                    ):
 #     _room_params = RoomDescriptionRecURL(hotel_id=hotelroom.hotel_id,
 #                                          **room_params.model_dump())
+
+
+class RoomWithRels(RoomPydanticSchema):
+    # FacilityPydanticSchema - схема с title и id.
+    # Предполагаем, что какое-то значение всегда будет - пустой массив или
+    # массив с данными, но будет. Поэтому значение по умолчанию не делаем.
+    facilities: list[FacilityPydanticSchema]

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, ForeignKey
 from src.database import Base
 
@@ -43,4 +43,31 @@ class RoomsORM(Base):
     # однокомнатных - 20 шт., двухкомнатных - 15 шт.).
     # Если не указываем параметры поля, то mapped_column() можно опустить.
     quantity: Mapped[int]
+
+    # Связь relationship с таблицей
+    # В атрибуте facilities будут все удобства, имеющиеся в этом номере
+
+    # "FacilitiesOrm" импортировать не надо, так как это является
+    # строкой (пишем в кавычках), а ссылкой на соответствующий класс.
+
+    # Параметр secondary - через какую таблицу связываем номера и удобства.
+    # Это таблица M2M, в нашем случае - она описывается в классе
+    # RoomsFacilitiesORM(Base) в файле src\models\facilities.py.
+
+    # Параметр back_populates обеспечивает двунаправленную навигацию,
+    # обеспечивая доступ к связанному объекту User из объекта Profile
+    # и от объекта RoomsORM к объекту FacilitiesORM. Поскольку в этом примере
+    # мы используем back_populates в отличие от backref, необходимо определить
+    # отношение с обеих сторон, в то время как с backref нам нужно будет
+    # определить отношение только с одной стороны (только в рамках одной модели).
+
+    # back_populates="rooms" - аргумент "rooms" - это наименование атрибута
+    # relationship, указанного в другом классе (в классе RoomsORM)
+
+    facilities: Mapped[list["FacilitiesORM"]] = relationship(
+        back_populates="rooms",
+        secondary="rooms_facilities"
+    )
+
+
 

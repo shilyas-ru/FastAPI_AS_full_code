@@ -8,11 +8,14 @@ from sqlalchemy import delete as sa_delete  # Для реализации SQL к
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.dependencies.dependencies_consts import pagination_pages
 
 
 from src.database import engine
+from src.schemas.rooms import RoomWithRels
+
 
 # engine нужен, чтобы использовать диалект SQL:
 # add_stmt = (sa_insert(self.model)
@@ -138,7 +141,7 @@ class BaseRepository:
     #       - session.delete(room_object) для удаления объекта room_object.
     #       Возвращает None или удалённый объект, преобразованный к схеме
     #       Pydantic: self.schema.
-    # - get_id. Выбирает по идентификатору (поле self.model.id) один
+    # - get_by_id. Выбирает по идентификатору (поле self.model.id) один
     #       объект в базе, используя метод get.
     #       Возвращает None или объект, преобразованный к схеме
     #       Pydantic: self.schema.
@@ -172,6 +175,7 @@ class BaseRepository:
 
     async def get_rows(self, *filter,
                        query=None,
+                       pydantic_schema=None,
                        per_page=pagination_pages["per_page"],
                        page=pagination_pages["page"],
                        # offset=(pagination_pages["page"] - 1) * pagination_pages["per_page"],
@@ -192,6 +196,8 @@ class BaseRepository:
         :param query: SQL-Запрос. Если простой SELECT-запрос на выборку,
                 то он формируется внутри метода. В качестве значений могут
                 приходить запросы, связанные с разными фильтрами.
+        :param pydantic_schema: Схема pydantic, к которой преобразовываются
+                полученные значения.
         :param per_page: Количество элементов на странице (должно быть >=1 и <=30,
             по умолчанию значение 3).
             Не используется, если параметр show_all=True.
@@ -213,6 +219,9 @@ class BaseRepository:
                  ..., HotelPydanticSchema(title='title_string_N', location='location_string_N', id=198)]
                 Тип возвращаемых элементов преобразован к схеме Pydantic: self.schema
         """
+
+        if pydantic_schema is None:
+            pydantic_schema = self.schema
 
         if query is None:
             query = sa_select(self.model)
@@ -249,7 +258,7 @@ class BaseRepository:
         # model_config = ConfigDict(from_attributes=True)
         # то по умолчанию будет использоваться значение from_attributes=True
 
-        result_pydantic_schema = [self.schema.model_validate(row_model)
+        result_pydantic_schema = [pydantic_schema.model_validate(row_model)
                                   for row_model in result.scalars().all()]
         # return result.scalars().all()
         return result_pydantic_schema
@@ -568,15 +577,12 @@ class BaseRepository:
             return result_pydantic_schema
         return None
 
-    async def get_id(self, object_id: int):  # -> None:
+    async def get_by_id(self, object_id: int):  # -> None:
         """
         Метод класса. Выбирает по идентификатору (поле self.model.id) один
         объект в базе, используя метод get.
 
         :param object_id: Идентификатор выбираемого объекта.
-        :param pydantic_schema: Схема Pydantic, к которой надо преобразовывать
-            итоговый результат. Если не задано (PydanticSchema=None), то
-            принимает значение по умолчанию: self.schema
 
         :return: Возвращает None или объект, преобразованный к схеме Pydantic: self.schema.
         """

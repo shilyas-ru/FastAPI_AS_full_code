@@ -129,5 +129,5 @@ async def show_bookings_my_get(user_id: UserIdDep,
         # status_code=401: не аутентифицирован
         raise HTTPException(status_code=401,
                             detail="Пользователь не авторизовался")
-    user = await db.users.get_id(object_id=user_id)
+    user = await db.users.get_by_id(object_id=user_id)
     return await db.bookings.get_all(user=user)
